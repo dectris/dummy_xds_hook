@@ -1,3 +1,3 @@
 #!/bin/bash 
 gcc -c external_image_provider.c
-gfortran external_image_provider.o image_consumer.f -o image_consumer
+gfortran external_image_provider.o image_consumer.f03 -o image_consumer

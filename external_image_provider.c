@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-void image_provider ( int32_t image [])
+void image_provider_ ( int32_t image [])
 {
   
   image [0] = 1;
