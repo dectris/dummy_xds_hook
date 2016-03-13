@@ -1,9 +1,5 @@
 !     Dummy image receiver
 ! 
-!
-!
-!
-!
 program image_consumer
   use iso_c_binding
   implicit none
