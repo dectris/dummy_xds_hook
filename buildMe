@@ -1,3 +1,11 @@
 #!/bin/bash 
-gcc -c external_image_provider.c
-gfortran external_image_provider.o image_consumer.f03 -o image_consumer
+gcc -g -c -fPIC -Wall -std=gnu99 dectris_image_read.c
+gcc  -shared -fPIC -Wl,-soname,libDectrisImageRead.so      -o libDectrisImageRead.so      dectris_image_read.o  -lc
+
+gcc -g -c -fPIC -Wall -std=gnu99 external_image_provider.c
+gcc  -shared -fPIC -Wl,-soname,libExternalImageProvider.so -o libExternalImageProvider.so external_image_provider.o -lc
+
+export LD_LIBRARY_PATH=$(pwd)
+
+gfortran  -c image_consumer.f03 
+gfortran -o image_consumer image_consumer.o libExternalImageProvider.so -ldl
