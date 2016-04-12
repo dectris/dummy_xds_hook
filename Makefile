@@ -14,7 +14,7 @@ FORTRAN  = ifort
 
 ifeq ($(FORTRAN),ifort)
 	FC       = /opt/intel/bin/ifort
-	FFLAGS   = -c -free -Tf 
+	FFLAGS   = -c -free -fPIC -Tf 
 	FL       = /opt/intel/bin/ifort
 	FLDFLAGS = -o
 	FLDOPTS  = -ldl
