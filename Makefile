@@ -1,52 +1,53 @@
-# Defining variables
+# Defining Dummy Makefile for multiple compilation (ifort/gfotran)
+#
+#
+#
 binaries       = image_consumer
-objects        = dectris_image_read.o    external_image_provider.o   image_consumer.o
-shared_objects = libDectrisImageRead.so  libExternalImageProvider.so
+#objects        = dectris_image_read.o    external_image_provider.o   image_consumer.o
+#shared_objects = libDectrisImageRead.so  libExternalImageProvider.so
 
-gfortran               = gfortran
-gfortran_compile       = $(gfortran) -c
-gfortran_compile_args  =
-gfortran_link          = $(gfortran) -o
-gfortran_link_args     = -ldl
+CC       = gcc
+CFLAGS   = -g -c -fPIC -Wall -std=gnu99 
+LDFLAGS  = -shared -fPIC 
+LDOPTS   = -lc
+FORTRAN  = ifort
 
-
-ifort                  = /opt/intel/bin/ifort
-ifort_compile          = $(ifort) 
-ifort_compile_args     = -free -Tf 
-ifort_link             = $(ifort) 
-ifort_link_args        = 
-
-f_compile      = $(ifort) -c
-f_compile_args = $(ifort_compile_args)
-
-f_link         = $(ifort) -o
-f_link_arg     = $(ifort_link_args)
-# f_compile      = $(gfortran) -c
-# f_link         = $(gfortran) -o
-# f_compile_args = $(gfortran_compile_args)
-# f_link_arg     = $(gfortran_link_args)
+ifeq ($(FORTRAN),ifort)
+	FC       = /opt/intel/bin/ifort
+	FFLAGS   = -c -free -Tf 
+	FL       = /opt/intel/bin/ifort
+	FLDFLAGS = -o
+	FLDOPTS  = -ldl
+else
+	FC       = gfortran
+	FFLAGS   = -c
+	FL       = gfortran
+	FLDFLAGS = -o
+	FLDOPTS  = -ldl
+endif
+all: image_consumer
 
 image_consumer: libDectrisImageRead.so libExternalImageProvider.so image_consumer.o
-	$(f_link) image_consumer image_consumer.o libExternalImageProvider.so $(f_link_arg)
+	$(FL) $(FLDFLAGS) $@ image_consumer.o libExternalImageProvider.so $(FLDOPTS)
 
 image_consumer.o: image_consumer.f03 
-	$(f_compile) $(f_compile_args) image_consumer.f03 
+	$(FC) $(FFLAGS) $^ -o $@
 
 libDectrisImageRead.so: dectris_image_read.o
-	gcc  -shared -fPIC -Wl,-soname,libDectrisImageRead.so -o libDectrisImageRead.so dectris_image_read.o  -lc
+	$(CC) $(LDFLAGS) -Wl,-soname,$@ -o $@ $^ $(LDOPTS)
 
 libExternalImageProvider.so: external_image_provider.o
-	gcc  -shared -fPIC -Wl,-soname,libExternalImageProvider.so -o libExternalImageProvider.so external_image_provider.o -lc
+	$(CC) $(LDFLAGS) -Wl,-soname,$@ -o $@ $^ $(LDOPTS)
 
 dectris_image_read.o: dectris_image_read.c
-	gcc -g -c -fPIC -Wall -std=gnu99 dectris_image_read.c
+	$(CC) $(CFLAGS) $^ -o $@
 
 external_image_provider.o: external_image_provider.c 
-	gcc -g -c -fPIC -Wall -std=gnu99 external_image_provider.c
+	$(CC) $(CFLAGS) $^ -o $@
 
 # Cleaning everything
 clean:
 	rm -rf $(binaries)
-	rm -rf $(objects)
-	rm -rf $(shared_objects)
+	rm -rf *.o
+	rm -rf *.so
 # End of the makefile
