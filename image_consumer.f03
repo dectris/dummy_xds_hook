@@ -1,6 +1,3 @@
-!
-!     dummy image receiver
-! 
 module iso_c_utilities
    use iso_c_binding ! intrinsic module
 
@@ -73,62 +70,66 @@ module dlfcn
       end function         
    end interface
       
-end module
+ end module dlfcn
 
+module global_source
+  use iso_c_binding
+  implicit none
+  public :: global_source_open !, global_source_header, global_source_data, global_source_clone
+  type(c_ptr) :: handle
+
+contains
+
+  subroutine global_source_open()
+    implicit none    
+    write (*, *) "[I] - global_source_open"
+  end subroutine global_source_open
+
+  subroutine global_source_close()
+    implicit none    
+    write (*, *) "[I] - global_source_open"
+  end subroutine global_source_close
+
+end module global_source
 
 program image_consumer
   use iso_c_binding
-  
-  use iso_c_binding
+  use global_source
+
   implicit none
   integer, parameter :: MAX_IMAGE_SIZE = 9
   integer (c_int32_t), dimension (0:MAX_IMAGE_SIZE) :: image
-  
-  
+
 
   integer::number_of_arguments,cptArg
-  logical::external_image_provider_flag=.FALSE.
+  logical::external_source_flag=.FALSE.
   character(len=20)::name
-  
+
+
   number_of_arguments=command_argument_count()
 
   if(number_of_arguments == 1 ) then
      call get_command_argument(1,name)
           select case(adjustl(name))
      case("--ext")
-        external_image_provider_flag=.TRUE.
+        external_source_flag=.TRUE.
      case default
-        external_image_provider_flag=.FALSE.
+        external_source_flag=.FALSE.
      end select
   endif
-  write (*, *) "[I] - External_image_provider_flag:",external_image_provider_flag
+  write (*, *) "[I] - External_source_flag:", external_source_flag
  
-  if (external_image_provider_flag) then
-     call call_external_image_read (image)
-     write (*, *) "[I] - SO-loaded image:",image
+  if (external_source_flag) then
+     write (*, *) "[I] - Loading shared-object"
+     call global_source_open()
   else
-     call internal_image_read (image)
-     write (*, *) "[I] - Fortran-loaded image:",image
+     write (*, *) "[I] - No shared-object required"
   endif
 
   stop
   
 end program image_consumer
 
-!
-! Internal Image Read
-!
-subroutine internal_image_read (image) 
-  use iso_c_binding
-  implicit none
-  integer (c_int32_t), dimension (*) :: image
-  integer :: pixel
-
-  do pixel = 0, 10, 1
-     image(pixel) = pixel
-  enddo
-  
-end subroutine internal_image_read
 
 
 !
@@ -157,9 +158,9 @@ subroutine call_external_image_read (image)
      end subroutine external_image_read
   end interface
   procedure(external_image_read), pointer :: dll_sub ! dynamically-linked procedure
-
+  dll_name="libDectrisSource.so"
   ! Open the DL:
-  handle=dlopen("libDectrisImageRead.so"//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
+  handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
 
   ! The use of IOR is not really proper...wait till Fortran 2008  
   if(.not.c_associated(handle)) then

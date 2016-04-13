@@ -22,9 +22,9 @@ else
 	FLDFLAGS_SHARED = -g -shared
 	FLDOPTS         = -ldl
 endif
-all: image_consumer
+all: image_consumer libDectrisSource.so
 
-image_consumer:  image_consumer.o libDectrisImageRead.so
+image_consumer:  image_consumer.o 
 	$(FC) $(FLDFLAGS) -o $@ image_consumer.o  $(FLDOPTS)
 
 image_consumer.o: image_consumer.f03 
@@ -37,10 +37,10 @@ image_consumer.o: image_consumer.f03
 #	$(FC) $(FFLAGS) $^ -o $@
 
 # C shared-object
-libDectrisImageRead.so: dectris_image_read.o
+libDectrisSource.so: dectris_source.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
-dectris_image_read.o: dectris_image_read.c
+dectris_source.o: dectris_source.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 # Cleaning everything
