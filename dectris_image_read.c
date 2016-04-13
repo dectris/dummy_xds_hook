@@ -1,5 +1,5 @@
 //
-// dummy external image provider v0.0.1
+// Dummy C external reader function
 //
 #include <stdint.h>
 

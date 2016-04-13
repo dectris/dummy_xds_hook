@@ -1,9 +1,6 @@
-!SUBROUTINE MySub(x) BIND(C,NAME="MySub")
-!   USE ISO_C_BINDING
-!   REAL(C_DOUBLE), VALUE :: x
-!   WRITE(*,*) "MySub: x=",x
-!END SUBROUTINE   
-
+!
+! Dummy fortran external reader function
+!
 subroutine external_image_read (image) bind(C,name="external_image_read")
   use iso_c_binding
   implicit none
