@@ -75,19 +75,35 @@ module dlfcn
 module global_source
   use iso_c_binding
   implicit none
-  public :: global_source_open !, global_source_header, global_source_data, global_source_clone
-  type(c_ptr) :: handle
-
+  type(c_ptr)                     :: handle
+  integer                         :: number
+  character(kind=c_char,len=1024) :: dll_name
+  public                          :: global_source_open !, global_source_header, global_source_data, global_source_clone
+  
 contains
 
   subroutine global_source_open()
+    use iso_c_binding
+    use iso_c_utilities
+    use dlfcn
     implicit none    
+
+    dll_name="libDectrisSource.so"
+    ! Open the DL:
+    handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
+    
+    ! The use of IOR is not really proper...wait till Fortran 2008  
+    if(.not.c_associated(handle)) then
+       write(*,*) "error in dlopen: ", c_f_string(dlerror())
+       stop
+    end if
+
     write (*, *) "[I] - global_source_open"
   end subroutine global_source_open
 
   subroutine global_source_close()
     implicit none    
-    write (*, *) "[I] - global_source_open"
+    write (*, *) "[I] - global_source_close"
   end subroutine global_source_close
 
 end module global_source
@@ -122,6 +138,7 @@ program image_consumer
   if (external_source_flag) then
      write (*, *) "[I] - Loading shared-object"
      call global_source_open()
+     call global_source_close()
   else
      write (*, *) "[I] - No shared-object required"
   endif
