@@ -1,10 +1,7 @@
 # Defining Dummy Makefile for multiple compilation (ifort/gfotran)
-# https://software.intel.com/en-us/forums/intel-fortran-compiler-for-linux-and-mac-os-x/topic/268114
 #
 #
 binaries       = image_consumer
-#objects        = dectris_image_read.o    external_image_provider.o   image_consumer.o
-#shared_objects = libDectrisImageRead.so  libExternalImageProvider.so
 
 CC       = gcc
 CFLAGS   = -g -c -fPIC -Wall -std=gnu99 
@@ -33,12 +30,13 @@ image_consumer:  image_consumer.o libDectrisImageRead.so
 image_consumer.o: image_consumer.f03 
 	$(FC) $(FFLAGS) $^ -o $@
 
+# Fortran shared-object
 #libDectrisImageRead.so: dectris_image_read.o
 #	$(FC) $(FLDFLAGS_SHARED) -o $@ $^ $(FLDOPTS)
-
 #dectris_image_read.o: dectris_image_read.f03
 #	$(FC) $(FFLAGS) $^ -o $@
 
+# C shared-object
 libDectrisImageRead.so: dectris_image_read.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
@@ -53,11 +51,3 @@ clean:
 	rm -rf *.mod
 # End of the makefile
 
-
-
-
-#dlfcn.o: dlfcn.f90 
-#	$(FC) $(FFLAGS) $^ -o $@
-
-#dlfcn.mod: dlfcn.o 
-#	$(FC) $(FLFLAGS) $^ $(FLDOPTS)
