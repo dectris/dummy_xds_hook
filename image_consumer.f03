@@ -78,49 +78,106 @@ module global_source
   type(c_ptr)                     :: handle
   integer                         :: number
   character(kind=c_char,len=1024) :: dll_name
+  integer(c_int)                  :: status
+
+  ! Define a type for an array of pointers
+  type pp
+    type(c_ptr), dimension(:), pointer :: p
+  end type pp
+
+  !type(pp), dimension(:), allocatable :: array
+  integer :: i
+
   public                          :: global_source_open !, global_source_header, global_source_data, global_source_clone
-  
+
+
 contains
 
+
+  ! Open the shared-object 
+  ! 
   subroutine global_source_open()
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
 
+    !type(pp), dimension(256) :: handle_array
+    integer (c_int32_t), dimension () :: image
+
+    character(kind=c_char,len=1024)    :: sub_name="external_image_read"
+    type(c_ptr)                        :: handle=c_null_ptr
+    type(c_funptr)                     :: funptr=c_null_funptr
+
+    ! the dynamic subroutine has a simple interface:
+    abstract interface
+       subroutine external_image_read(image) bind(C)
+         use iso_c_binding
+         integer (c_int32_t), dimension (1) :: image
+         !real(c_double), value :: x
+       end subroutine external_image_read
+    end interface
+    procedure(external_image_read), pointer :: dll_sub ! dynamically-linked procedure
+
+    !do i = 1, size(array)
+    !   allocate(array(i)%p(i))
+    !end do
+
     dll_name="libDectrisSource.so"
     ! Open the DL:
     handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-    
     ! The use of IOR is not really proper...wait till Fortran 2008  
     if(.not.c_associated(handle)) then
        write(*,*) "error in dlopen: ", c_f_string(dlerror())
        stop
     end if
 
-    write (*, *) "[I] - global_source_open"
+    ! Find the subroutine in the DL:
+    funptr=DLSym(handle,trim(sub_name)//C_NULL_CHAR)
+    if(.not.c_associated(funptr)) then
+       write(*,*) "error in dlsym: ", c_f_string(dlerror())
+       stop
+    end if
+
+
+    !write (*, *) "[I] - global_source_open", handle
   end subroutine global_source_open
 
+
+  ! Close the shared-object 
+  ! 
   subroutine global_source_close()
+    use iso_c_binding
+    use iso_c_utilities
+    use dlfcn
     implicit none    
     write (*, *) "[I] - global_source_close"
+
+    ! now close the dl:
+    status=dlclose(handle)
+    if(status/=0) then
+       write(*,*) "error in dlclose: ", c_f_string(dlerror())
+       stop
+    end if
   end subroutine global_source_close
 
 end module global_source
+
+
+
 
 program image_consumer
   use iso_c_binding
   use global_source
 
   implicit none
-  integer, parameter :: MAX_IMAGE_SIZE = 9
-  integer (c_int32_t), dimension (0:MAX_IMAGE_SIZE) :: image
+  !integer, parameter :: MAX_IMAGE_SIZE = 9
+  !integer (c_int32_t), dimension (0:MAX_IMAGE_SIZE) :: image
 
 
   integer::number_of_arguments,cptArg
   logical::external_source_flag=.FALSE.
   character(len=20)::name
-
 
   number_of_arguments=command_argument_count()
 
