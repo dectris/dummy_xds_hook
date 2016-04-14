@@ -171,7 +171,7 @@ contains
 
   ! Get the header
   ! 
-  subroutine generic_source_header(handle, nx, ny, nbyte, qx, qy, error_flag)
+  subroutine generic_source_header(handle, nx, ny, nbyte, qx, qy, info_array, error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255)  input   Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                                     output value that is awarded by the Library)
@@ -200,11 +200,12 @@ contains
     
     ! the dynamic subroutine interface for generic_source_data
     abstract interface
-       subroutine get_header(nx, ny, nbyte, qx, qy, error_flag) bind(C)
+       subroutine get_header(nx, ny, nbyte, qx, qy, info_array, error_flag) bind(C)
          use iso_c_binding
          integer      :: nx, ny, nbyte
          real(kind=4) :: qx, qy
          integer      :: error_flag
+         integer, dimension(1024) :: info_array
          
          !real(c_double), value :: x
        end subroutine get_header
@@ -219,7 +220,7 @@ contains
     real(kind=4)                       :: qx, qy
     integer                            :: error_flag
     integer                            :: external_error_flag
-
+    integer, dimension(1024)           :: info_array
     error_flag=0
 
     write (*, *) "[F] - generic_source_open  <", handle,"> "
@@ -245,7 +246,7 @@ contains
     call c_f_procpointer(cptr=funptr, fptr=dll_get_header)
  
     ! finally, invoke the dynamically-linked subroutine:
-    call dll_get_header(nx, ny, nbyte, qx, qy, external_error_flag)
+    call dll_get_header(nx, ny, nbyte, qx, qy, info_array, external_error_flag)
 
     error_flag = external_error_flag
     return 
@@ -337,6 +338,7 @@ program image_consumer
   integer                         :: error_flag
   integer                         :: nx=0, ny=0, nbyte=0
   real(kind=4)                    :: qx=0, qy=0
+  integer, dimension(1024)        :: info_array
 
   number_of_arguments=command_argument_count()
 
@@ -362,13 +364,15 @@ program image_consumer
         stop
      else
      
-        call generic_source_header(handle, nx, ny, nbyte, qx, qy, error_flag) ! INFO_ARRAY, error_flag)
+        call generic_source_header(handle, nx, ny, nbyte, qx, qy, info_array, error_flag) ! INFO_ARRAY, error_flag)
         write (*, *) "[F] - generic_source_header"
-        write (*, *) "      + handle     = <", handle,">"
-        write (*, *) "      + nx,ny      = <", nx, ", ", ny,">"
-        write (*, *) "      + nbyte      = <", nbyte,">"
-        write (*, *) "      + qx,qy      = <", qx, ", ", qy,">"
-        write (*, *) "      + error_flag = <", error_flag,">"
+        write (*, *) "      + handle        = <", handle,">"
+        write (*, *) "      + nx,ny         = <", nx, ", ", ny,">"
+        write (*, *) "      + nbyte         = <", nbyte,">"
+        write (*, *) "      + qx,qy         = <", qx, ", ", qy,">"
+        write (*, *) "      + info_array(1) = <", info_array(1) ,">"
+        write (*, *) "      + info_array(2) = <", info_array(2) ,">"
+        write (*, *) "      + error_flag    = <", error_flag,">"
 
         ! error_flag = generic_source_data(handle, nx, ny, image, error_flag)
         call generic_source_close(handle, error_flag)
