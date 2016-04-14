@@ -11,11 +11,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
-void get_data ( int32_t image [])
+void get_data (int *frame_number, int *nx, int *ny, float data_array [], int *error_flag)
 {
-  for (int i=0; i<=10; i++){ 
-    image [i] = 0xdeadf00+i; // 233496320
+  for (int i=0; i<=*nx; i++){ 
+    for (int j = 0; j <= *ny;j++){
+      data_array[i+(*nx)*j] = i+j; // 233496320
+    }
   }
+  *error_flag = 0;
   return;
 }
 

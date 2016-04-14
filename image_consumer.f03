@@ -255,18 +255,32 @@ contains
 
   ! Dynamically map function and execute it 
   ! 
-  subroutine generic_source_data(handle, nx, ny, image, error_flag)
+  subroutine generic_source_data(handle, frame_number, nx, ny, data_array, error_flag)
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
-    type(c_ptr)                          :: handle
-    integer                              :: nx, ny
-    type(c_funptr)                       :: funptr=c_null_funptr
-    integer                              :: error_flag
-    integer (c_int32_t), dimension (:,:) :: image
 
-    write (*, *) "[F] - generic_source_data  <", handle,">", nx, ny, error_flag, image
+    ! the dynamic subroutine interface for generic_source_data
+    abstract interface
+       subroutine get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
+         use iso_c_binding
+         integer                                   :: nx, ny, frame_number
+         integer                                   :: error_flag
+         real(kind=4), dimension(:), allocatable   :: data_array
+         
+         !real(c_double), value :: x
+       end subroutine get_data
+    end interface
+    procedure(get_data), pointer :: dll_get_data ! dynamically-linked procedure
+
+    type(c_ptr)                               :: handle
+    integer                                   :: nx, ny, frame_number
+    type(c_funptr)                            :: funptr=c_null_funptr
+    integer                                   :: error_flag
+    real(kind=4), dimension (:),allocatable   :: data_array
+
+    write (*, *) "[F] - generic_source_data  <", handle,">", frame_number, " " , nx, " " , ny, " " , error_flag
 
     ! Find the subroutine in the DL:
     funptr=DLSym(handle,"generic_source_data")
@@ -277,10 +291,10 @@ contains
     ! now convert the c function pointer to a fortran procedure pointer
     ! call c_f_procpointer(cptr=funptr, fptr=dll_external_image_read)
  
-  !   ! finally, invoke the dynamically-linked subroutine:
-  !   call dll_sub(image)
-  !   write (*, *) "[F] - image:",image
-
+    !   ! finally, invoke the dynamically-linked subroutine:
+    !   call dll_sub(image)
+    !   write (*, *) "[F] - image:",image
+    
   end subroutine generic_source_data
 
   ! Close the shared-object 
