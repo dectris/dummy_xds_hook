@@ -1,3 +1,19 @@
+!
+! Copyright (C) 2016
+! Dectris Ltd., Taefernweg 1, 5405 Baden-Daettwil, Switzerland.
+! All rights reserved.
+!
+! vittorio.boccone@dectris.com
+!
+
+
+
+!
+! Interoperability with C in Fortran 2003
+!
+! Wrap up module to abstract the interface from 
+! http://cims.nyu.edu/~donev/Fortran/DLL/DLL.Forum.txt
+!
 module iso_c_utilities
    use iso_c_binding ! intrinsic module
 
@@ -29,6 +45,12 @@ contains
 
 end module
 
+!
+! Interoperability with C in Fortran 2003
+!
+! Wrap up module to abstract the interface from 
+! http://cims.nyu.edu/~donev/Fortran/DLL/DLL.Forum.txt
+!
 module dlfcn
    use iso_c_binding
    use iso_c_utilities
@@ -72,52 +94,74 @@ module dlfcn
       
  end module dlfcn
 
-module global_source
+
+
+
+
+
+!
+! Generic handle for share-object like structures
+!
+! Wrap up module to abstract the interface from 
+! http://cims.nyu.edu/~donev/Fortran/DLL/DLL.Forum.txt
+!
+module generic_source
   use iso_c_binding
   implicit none
-  type(c_ptr)                     :: handle
-  integer                         :: number
+
   character(kind=c_char,len=1024) :: dll_name
   integer(c_int)                  :: status
 
   ! Define a type for an array of pointers
-  type pp
-    type(c_ptr), dimension(:), pointer :: p
-  end type pp
+  ! type pp
+  !   type(c_ptr), dimension(:), pointer :: p
+  ! end type pp
 
-  !type(pp), dimension(:), allocatable :: array
-  integer :: i
 
-  public                          :: global_source_open !, global_source_header, global_source_data, global_source_clone
+  ! the dynamic subroutine interface for generic_source_data
+  ! abstract interface
+  !    subroutine generic_source_data(image) bind(C)
+  !      use iso_c_binding
+  !      integer (c_int32_t), dimension (1) :: image
+  !      !real(c_double), value :: x
+  !    end subroutine generic_source_data
+  ! end interface
+  ! procedure(generic_source_data), pointer :: dll_external_image_read ! dynamically-linked procedure
 
+
+  public                          :: generic_source_open !, generic_source_header, generic_source_data, generic_source_clone
+
+
+  common /generic_vars/ dll_name, status
 
 contains
 
-
   ! Open the shared-object 
   ! 
-  subroutine global_source_open()
+  function generic_source_open(handle, detector, template_name) result(return_value)
+    ! Requirements:
+    ! 'ID' (integer 0..255) input. Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
+    !                       output value that is awarded by the Library)
+    ! 'DETECTOR'            input, (I would without the  .so, because it is an implementation detail)
+    ! 'NAME_TEMPLATE'       input, (the Resource in HDF5 masterFile)
+    !  RETURN:
+    !   0 Success
+    !  -1 ID already exists, 
+    !  -2 Library can not be loaded
+    !  -3 Master file cannot be opened
+    !
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
 
-    !type(pp), dimension(256) :: handle_array
-    integer (c_int32_t), dimension () :: image
 
-    character(kind=c_char,len=1024)    :: sub_name="external_image_read"
-    type(c_ptr)                        :: handle=c_null_ptr
+    character(kind=c_char,len=1024)    :: sub_name="generic_source_data"
+    character(len=:), allocatable      :: detector, template_name
+    type(c_ptr)                        :: handle
     type(c_funptr)                     :: funptr=c_null_funptr
-
-    ! the dynamic subroutine has a simple interface:
-    abstract interface
-       subroutine external_image_read(image) bind(C)
-         use iso_c_binding
-         integer (c_int32_t), dimension (1) :: image
-         !real(c_double), value :: x
-       end subroutine external_image_read
-    end interface
-    procedure(external_image_read), pointer :: dll_sub ! dynamically-linked procedure
+    integer                            :: return_value
+    write (*, *) "[I] - generic_source_open  <", handle,">", detector, template_name 
 
     !do i = 1, size(array)
     !   allocate(array(i)%p(i))
@@ -129,7 +173,7 @@ contains
     ! The use of IOR is not really proper...wait till Fortran 2008  
     if(.not.c_associated(handle)) then
        write(*,*) "error in dlopen: ", c_f_string(dlerror())
-       stop
+       return_value = -2
     end if
 
     ! Find the subroutine in the DL:
@@ -138,20 +182,44 @@ contains
        write(*,*) "error in dlsym: ", c_f_string(dlerror())
        stop
     end if
+    ! now convert the c function pointer to a fortran procedure pointer
+    ! call c_f_procpointer(cptr=funptr, fptr=dll_external_image_read)
+    
+
+    write (*, *) "[I] - generic_source_open  <", handle,">"
+    return
+  end function generic_source_open
 
 
-    !write (*, *) "[I] - global_source_open", handle
-  end subroutine global_source_open
-
-
-  ! Close the shared-object 
+  ! Dynamically map function and execute it 
   ! 
-  subroutine global_source_close()
+  subroutine generic_source_data(handle, NX, NY, image, error_flag)
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
-    write (*, *) "[I] - global_source_close"
+    type(c_ptr)                          :: handle
+    integer                              :: NX, NY
+    logical                              :: error_flag
+    integer (c_int32_t), dimension (:,:) :: image
+
+    write (*, *) "[I] - generic_source_data  <", handle,">", NX, NY, error_flag, image
+
+  !   ! finally, invoke the dynamically-linked subroutine:
+  !   call dll_sub(image)
+  !   write (*, *) "[I] - image:",image
+
+  end subroutine generic_source_data
+
+  ! Close the shared-object 
+  ! 
+  subroutine generic_source_close(handle)
+    use iso_c_binding
+    use iso_c_utilities
+    use dlfcn
+    implicit none    
+    type(c_ptr)                        :: handle
+    write (*, *) "[I] - generic_source_close <", handle,">"
 
     ! now close the dl:
     status=dlclose(handle)
@@ -159,25 +227,29 @@ contains
        write(*,*) "error in dlclose: ", c_f_string(dlerror())
        stop
     end if
-  end subroutine global_source_close
+  end subroutine generic_source_close
 
-end module global_source
-
-
+end module generic_source
 
 
+!
+! Dummy shared object consumer
+!
 program image_consumer
   use iso_c_binding
-  use global_source
+  use generic_source
 
   implicit none
-  !integer, parameter :: MAX_IMAGE_SIZE = 9
-  !integer (c_int32_t), dimension (0:MAX_IMAGE_SIZE) :: image
+  integer (c_int32_t), dimension (:,:), allocatable :: image
 
 
-  integer::number_of_arguments,cptArg
-  logical::external_source_flag=.FALSE.
-  character(len=20)::name
+  integer                         :: number_of_arguments,cptArg
+  logical                         :: external_source_flag=.FALSE.
+  character(len=20)               :: name
+  character(len=:), allocatable   :: detector, template_name
+  type(c_ptr)                     :: handle=c_null_ptr
+  logical                         :: error_flag
+  integer                         :: return_value=0
 
   number_of_arguments=command_argument_count()
 
@@ -194,8 +266,11 @@ program image_consumer
  
   if (external_source_flag) then
      write (*, *) "[I] - Loading shared-object"
-     call global_source_open()
-     call global_source_close()
+     detector      = 'my_detector'
+     template_name = 'my_name_template'
+     return_value = generic_source_open(handle, , template_name)
+     call generic_source_data(handle, 10, 10, image, error_flag)
+     call generic_source_close(handle)
   else
      write (*, *) "[I] - No shared-object required"
   endif
@@ -206,7 +281,29 @@ end program image_consumer
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 !
+! All in one
 ! External Image Read (thought c/c++ code)
 !
 subroutine call_external_image_read (image) 
