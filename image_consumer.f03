@@ -404,6 +404,7 @@ program image_consumer
            
            ! One must place the total number of frames somewhere in the info array
            frame_number = 1
+           allocate (data_array(nx*ny))
 
            call generic_source_data(frame_number, nx, ny, data_array, error_flag)
            write (*, *) "[F] - generic_source_data"
@@ -444,65 +445,3 @@ end program image_consumer
 
 
 
-
-!
-! All in one
-! External Image Read (thought c/c++ code)
-!
-subroutine call_external_image_read (image) 
-  use iso_c_binding
-  use iso_c_utilities
-  use dlfcn
-  implicit none
-  
-  integer (c_int32_t), dimension (*) :: image
-
-  ! local variables:
-  character(kind=c_char,len=1024) :: dll_name, sub_name
-  type(c_ptr)                     :: handle=c_null_ptr
-  type(c_funptr)                  :: funptr=c_null_funptr
-  integer(c_int)                  :: status
-  
-  ! the dynamic subroutine has a simple interface:
-  abstract interface
-     subroutine external_image_read(image) bind(C)
-       use iso_c_binding
-       integer (c_int32_t), dimension (1) :: image
-       !real(c_double), value :: x
-     end subroutine external_image_read
-  end interface
-  procedure(external_image_read), pointer :: dll_sub ! dynamically-linked procedure
-  dll_name="libDectrisSource.so"
-  ! Open the DL:
-  handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-
-  ! The use of IOR is not really proper...wait till Fortran 2008  
-  if(.not.c_associated(handle)) then
-     write(*,*) "error in dlopen: ", c_f_string(dlerror())
-     stop
-  end if
-
-  ! Find the subroutine in the DL:
-  funptr=DLSym(handle,"external_image_read"//C_NULL_CHAR)
-  if(.not.c_associated(funptr)) then
-     write(*,*) "error in dlsym: ", c_f_string(dlerror())
-     stop
-  end if
-  ! now convert the c function pointer to a fortran procedure pointer
-  call c_f_procpointer(cptr=funptr, fptr=dll_sub)
-  
-  ! finally, invoke the dynamically-linked subroutine:
-  call dll_sub(image)
-  
-   ! now close the dl:
-  status=dlclose(handle)
-  if(status/=0) then
-     write(*,*) "error in dlclose: ", c_f_string(dlerror())
-     stop
-  end if
-  
-end subroutine call_external_image_read
-
-!
-! External Image Read (thought c/c++ code)
-!
