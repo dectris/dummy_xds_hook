@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-void get_data (int *frame_number, int *nx, int *ny, float data_array [], int *error_flag)
+void get_data (int *frame_number, int *nx, int *ny, int data_array [], int *error_flag)
 {
   for (int i=0; i<=*nx; i++){ 
     for (int j = 0; j <= *ny;j++){
@@ -23,9 +23,24 @@ void get_data (int *frame_number, int *nx, int *ny, float data_array [], int *er
 }
 
 
+//    Requirements:
+//      'nx' (*int)            output  number of pixels along x 
+//      'ny' (*int)            output  number of pixels along y
+//      'nbyte' (*int)         output  number of bytes in the image... x*y*depth
+//      'qx' (float)           output  pixel size
+//      'qy' (float)           output  pixel size
+//      'info' (int array)     output  array of (1024) integers:
+//                                      - info(0)       = Dectris 
+//                                      - info(1)       = version number of the library
+//                                      - info(2..1023) = unused
+//  (!) 'error_flag' (integer) output  Provides error state condition
+//                                      0 Success
+//                                     -1 Library not loaded (provided on the fortran side)
+//                                     -2 Cannot read header
 void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy, 
 		  int info_array[], int *error_flag)
 {
+
   // Dummy values
   *nx       = 123;
   *ny       = 345;
@@ -36,8 +51,8 @@ void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy,
   printf("       + nx,ny         = < %d, %d >\n", *nx, *ny);
   printf("       + nbyte         = < %d >\n", *nbyte);
 
-  *qx         = 0.;
-  *qy         = 0.;
+  *qx         = 75.e-6;
+  *qy         = 75.e-6;
   *error_flag = 0;
   printf("       + qx,qy         = < %f, %f >\n", *qx, *qy);
   printf("       + error_flag    = < %d > \n", *error_flag);
