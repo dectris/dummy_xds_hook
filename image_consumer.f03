@@ -268,7 +268,7 @@ program image_consumer
      write (*, *) "[I] - Loading shared-object"
      detector      = 'my_detector'
      template_name = 'my_name_template'
-     return_value = generic_source_open(handle, , template_name)
+     return_value = generic_source_open(handle, detector, template_name)
      call generic_source_data(handle, 10, 10, image, error_flag)
      call generic_source_close(handle)
   else
