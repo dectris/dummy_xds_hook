@@ -112,23 +112,6 @@ module generic_source
   character(kind=c_char,len=1024) :: dll_name
   integer(c_int)                  :: status
 
-  ! Define a type for an array of pointers
-  ! type pp
-  !   type(c_ptr), dimension(:), pointer :: p
-  ! end type pp
-
-
-  ! the dynamic subroutine interface for generic_source_data
-  ! abstract interface
-  !    subroutine generic_source_data(image) bind(C)
-  !      use iso_c_binding
-  !      integer (c_int32_t), dimension (1) :: image
-  !      !real(c_double), value :: x
-  !    end subroutine generic_source_data
-  ! end interface
-  ! procedure(generic_source_data), pointer :: dll_external_image_read ! dynamically-linked procedure
-
-
   public                          :: generic_source_open !, generic_source_header, generic_source_data, generic_source_clone
 
 
@@ -138,95 +121,198 @@ contains
 
   ! Open the shared-object 
   ! 
-  function generic_source_open(handle, detector, template_name) result(return_value)
+  subroutine generic_source_open(handle, detector, template_name, error_flag)
     ! Requirements:
-    ! 'ID' (integer 0..255) input. Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
-    !                       output value that is awarded by the Library)
-    ! 'DETECTOR'            input, (I would without the  .so, because it is an implementation detail)
-    ! 'NAME_TEMPLATE'       input, (the Resource in HDF5 masterFile)
-    !  RETURN:
-    !   0 Success
-    !  -1 ID already exists, 
-    !  -2 Library can not be loaded
-    !  -3 Master file cannot be opened
+    !  (!) 'ID' (integer 0..255) input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
+    !                                   output value that is awarded by the Library)
+    !                                   (!) -> Using handle instead (c_ptr)
+    !      'DETECTOR'            input  (I would without the  .so, because it is an implementation detail)
+    !      'NAME_TEMPLATE'       input  (the Resource in HDF5 masterFile)
+    !      'ERROR_FLAG'          output Return values
+    !                                         0 Success
+    !                                   (!)  -1 ID already exists (not yet implemented)
+    !                                        -2 Library can not be loaded
+    !                                   (!)  -3 Master file cannot be opened (not yet implemented)
+    !                                        -4 function not found in library
     !
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
 
+    character(kind=c_char,len=1024)    :: sub_name="generic_source_data"
+    character(len=:), allocatable      :: detector, template_name
+    type(c_ptr)                        :: handle
+    integer                            :: error_flag
 
+    write (*, *) "[F] - generic_source_open  <", handle,"> "
+    write (*, *) "      detector       = " , detector
+    write (*, *) "      template_name  = " , template_name 
+
+ 
+    dll_name=detector//".so"
+    error_flag = 0
+    ! Open the DL:
+    ! The use of IOR is not really proper...wait till Fortran 2008  
+    handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
+
+    ! Check if can use handle
+    if(.not.c_associated(handle)) then
+       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       error_flag = -2
+       return
+    end if
+
+    write (*, *) "[F] - generic_source_open  <", handle,">"
+    
+    return     
+  end subroutine generic_source_open
+
+
+  ! Get the header
+  ! 
+  subroutine generic_source_header(handle, nx, ny, nbyte, qx, qy, error_flag)
+    ! Requirements:
+    !  (!) 'ID' (integer 0..255)  input   Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
+    !                                     output value that is awarded by the Library)
+    !                                     (!) -> Using handle instead (c_ptr)
+    !      'NX' (integer)         output  Number of pixels along X 
+    !      'NY' (integer)         output  Number of pixels along Y
+    !      'NBYTE' (integer)      output  Number of bytes in the image... X*Y*DEPTH
+    !      'QX' (4*REAL)          output 
+    !      'QY' (4*REAL)          output 
+    !      'INFO' (integer array) output  Array of (1024) integers:
+    !                                      INFO(1) = Dectris
+    !                                      INFO(2) = Version number of the library
+    !  (!) 'ERROR_FLAG' (integer) output  Skipped as it's a function.
+
+    ! result(error_flag):
+    !        0 Success
+    !  (!)  -1 Cannot open id/handle (not yet implemente)
+    !       -2 Library can not be loaded
+    !  (!)  -3 Cannot read header (not yet implemente)
+    !       -4 Cannot find subrouting in the shared-object
+    !
+    use iso_c_binding
+    use iso_c_utilities
+    use dlfcn
+    implicit none    
+    
+    ! the dynamic subroutine interface for generic_source_data
+    abstract interface
+       subroutine get_header(nx, ny, nbyte, qx, qy, error_flag) bind(C)
+         use iso_c_binding
+         integer      :: nx, ny, nbyte
+         real(kind=4) :: qx, qy
+         integer      :: error_flag
+         
+         !real(c_double), value :: x
+       end subroutine get_header
+    end interface
+    procedure(get_header), pointer :: dll_get_header ! dynamically-linked procedure
+    
     character(kind=c_char,len=1024)    :: sub_name="generic_source_data"
     character(len=:), allocatable      :: detector, template_name
     type(c_ptr)                        :: handle
     type(c_funptr)                     :: funptr=c_null_funptr
-    integer                            :: return_value
-    write (*, *) "[I] - generic_source_open  <", handle,">", detector, template_name 
+    integer                            :: nx, ny, nbyte
+    real(kind=4)                       :: qx, qy
+    integer                            :: error_flag
+    integer                            :: external_error_flag
 
-    !do i = 1, size(array)
-    !   allocate(array(i)%p(i))
-    !end do
+    error_flag=0
 
-    dll_name="libDectrisSource.so"
-    ! Open the DL:
-    handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-    ! The use of IOR is not really proper...wait till Fortran 2008  
+    write (*, *) "[F] - generic_source_open  <", handle,"> "
+    write (*, *) "      detector       = " , detector
+    write (*, *) "      template_name  = " , template_name 
+
+    ! Check if can use handle
     if(.not.c_associated(handle)) then
-       write(*,*) "error in dlopen: ", c_f_string(dlerror())
-       return_value = -2
+       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       error_flag = -2
+       return
     end if
-
+ 
     ! Find the subroutine in the DL:
-    funptr=DLSym(handle,trim(sub_name)//C_NULL_CHAR)
+    funptr=DLSym(handle,"get_header")
     if(.not.c_associated(funptr)) then
-       write(*,*) "error in dlsym: ", c_f_string(dlerror())
-       stop
+       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
+       error_flag = -4
+       return
     end if
-    ! now convert the c function pointer to a fortran procedure pointer
-    ! call c_f_procpointer(cptr=funptr, fptr=dll_external_image_read)
-    
 
-    write (*, *) "[I] - generic_source_open  <", handle,">"
-    return
-  end function generic_source_open
+    ! convert the c function pointer to a fortran procedure pointer
+    call c_f_procpointer(cptr=funptr, fptr=dll_get_header)
+ 
+    ! finally, invoke the dynamically-linked subroutine:
+    call dll_get_header(nx, ny, nbyte, qx, qy, external_error_flag)
+
+    error_flag = external_error_flag
+    return 
+  end subroutine generic_source_header
 
 
   ! Dynamically map function and execute it 
   ! 
-  subroutine generic_source_data(handle, NX, NY, image, error_flag)
+  subroutine generic_source_data(handle, nx, ny, image, error_flag)
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
     type(c_ptr)                          :: handle
-    integer                              :: NX, NY
-    logical                              :: error_flag
+    integer                              :: nx, ny
+    type(c_funptr)                       :: funptr=c_null_funptr
+    integer                              :: error_flag
     integer (c_int32_t), dimension (:,:) :: image
 
-    write (*, *) "[I] - generic_source_data  <", handle,">", NX, NY, error_flag, image
+    write (*, *) "[F] - generic_source_data  <", handle,">", nx, ny, error_flag, image
 
+    ! Find the subroutine in the DL:
+    funptr=DLSym(handle,"generic_source_data")
+    if(.not.c_associated(funptr)) then
+       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
+       error_flag = -4
+    end if
+    ! now convert the c function pointer to a fortran procedure pointer
+    ! call c_f_procpointer(cptr=funptr, fptr=dll_external_image_read)
+ 
   !   ! finally, invoke the dynamically-linked subroutine:
   !   call dll_sub(image)
-  !   write (*, *) "[I] - image:",image
+  !   write (*, *) "[F] - image:",image
 
   end subroutine generic_source_data
 
   ! Close the shared-object 
   ! 
-  subroutine generic_source_close(handle)
+  subroutine generic_source_close(handle, error_flag)
+    ! Requirements:
+    !  (!) 'ID' (integer 0..255) input. Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
+    !                            output value that is awarded by the Library)
+    !                            (!) -> Using handle instead (c_ptr)
+    !      'ERROR_FLAG' integer  output Return values:
+    !                                     0 Success
+    !                                    -1 Error closing shared-object
+
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
-    type(c_ptr)                        :: handle
-    write (*, *) "[I] - generic_source_close <", handle,">"
+
+    type(c_ptr) :: handle
+    integer     :: error_flag
+
+    write (*, *) "[F] - generic_source_close <", handle,">"
 
     ! now close the dl:
     status=dlclose(handle)
     if(status/=0) then
-       write(*,*) "error in dlclose: ", c_f_string(dlerror())
-       stop
+       write(*,*) "[X] - error in dlclose: ", c_f_string(dlerror())
+       error_flag = -1
+    else
+       error_flag = 0
     end if
+
+    return 
   end subroutine generic_source_close
 
 end module generic_source
@@ -248,8 +334,9 @@ program image_consumer
   character(len=20)               :: name
   character(len=:), allocatable   :: detector, template_name
   type(c_ptr)                     :: handle=c_null_ptr
-  logical                         :: error_flag
-  integer                         :: return_value=0
+  integer                         :: error_flag
+  integer                         :: nx=0, ny=0, nbyte=0
+  real(kind=4)                    :: qx=0, qy=0
 
   number_of_arguments=command_argument_count()
 
@@ -262,17 +349,32 @@ program image_consumer
         external_source_flag=.FALSE.
      end select
   endif
-  write (*, *) "[I] - External_source_flag:", external_source_flag
+  write (*, *) "[F] - External_source_flag:", external_source_flag
  
   if (external_source_flag) then
-     write (*, *) "[I] - Loading shared-object"
-     detector      = 'my_detector'
-     template_name = 'my_name_template'
-     return_value = generic_source_open(handle, detector, template_name)
-     call generic_source_data(handle, 10, 10, image, error_flag)
-     call generic_source_close(handle)
+     write (*, *) "[F] - Loading shared-object"
+     detector      = 'libDectrisSource'
+     template_name = 'path_to_hdf5_master_file'
+
+     call generic_source_open(handle, detector, template_name, error_flag)
+
+     if (0/=error_flag) then
+        stop
+     else
+     
+        call generic_source_header(handle, nx, ny, nbyte, qx, qy, error_flag) ! INFO_ARRAY, error_flag)
+        write (*, *) "[F] - generic_source_header"
+        write (*, *) "      + handle     = <", handle,">"
+        write (*, *) "      + nx,ny      = <", nx, ", ", ny,">"
+        write (*, *) "      + nbyte      = <", nbyte,">"
+        write (*, *) "      + qx,qy      = <", qx, ", ", qy,">"
+        write (*, *) "      + error_flag = <", error_flag,">"
+
+        ! error_flag = generic_source_data(handle, nx, ny, image, error_flag)
+        call generic_source_close(handle, error_flag)
+     endif
   else
-     write (*, *) "[I] - No shared-object required"
+     write (*, *) "[F] - No shared-object required"
   endif
 
   stop
