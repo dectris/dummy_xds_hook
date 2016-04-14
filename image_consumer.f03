@@ -112,7 +112,7 @@ module generic_source
   character(kind=c_char,len=1024) :: dll_name
   integer(c_int)                  :: status
 
-  public                          :: generic_source_open !, generic_source_header, generic_source_data, generic_source_clone
+  !public                          :: generic_source_open !, generic_source_header, generic_source_data, generic_source_clone
 
 
   common /generic_vars/ dll_name, status
@@ -125,7 +125,7 @@ contains
     ! Requirements:
     !  (!) 'ID' (integer 0..255) input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                                   output value that is awarded by the Library)
-    !                                   (!) -> Using handle instead (c_ptr)
+    !                                   (!) -> output Using handle instead (c_ptr)
     !      'DETECTOR'            input  (I would without the  .so, because it is an implementation detail)
     !      'NAME_TEMPLATE'       input  (the Resource in HDF5 masterFile)
     !      'ERROR_FLAG'          output Return values
@@ -179,8 +179,8 @@ contains
     !      'NX' (integer)         output  Number of pixels along X 
     !      'NY' (integer)         output  Number of pixels along Y
     !      'NBYTE' (integer)      output  Number of bytes in the image... X*Y*DEPTH
-    !      'QX' (4*REAL)          output 
-    !      'QY' (4*REAL)          output 
+    !      'QX' (4*REAL)          output  pixel size
+    !      'QY' (4*REAL)          output  pixel size
     !      'INFO' (integer array) output  Array of (1024) integers:
     !                                      INFO(1) = Dectris
     !                                      INFO(2) = Version number of the library
@@ -289,10 +289,10 @@ contains
        error_flag = -4
     end if
     ! now convert the c function pointer to a fortran procedure pointer
-    ! call c_f_procpointer(cptr=funptr, fptr=dll_external_image_read)
+    call c_f_procpointer(cptr=funptr, fptr=dll_get_data)
  
     !   ! finally, invoke the dynamically-linked subroutine:
-    !   call dll_sub(image)
+    call dll_get_data(frame_number, nx, ny, data_array, error_flag)
     !   write (*, *) "[F] - image:",image
     
   end subroutine generic_source_data
@@ -388,7 +388,12 @@ program image_consumer
         write (*, *) "      + info_array(2) = <", info_array(2) ,">"
         write (*, *) "      + error_flag    = <", error_flag,">"
 
-        ! error_flag = generic_source_data(handle, nx, ny, image, error_flag)
+        if (0/=error_flag) then
+           stop
+        ! else
+        !  error_flag = generic_source_data(handle, nx, ny, image, error_flag)
+        endif
+        
         call generic_source_close(handle, error_flag)
      endif
   else
