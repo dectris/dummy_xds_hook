@@ -121,6 +121,19 @@ module generic_source
   !
   ! get_header -> dll_get_header 
   abstract interface
+     function create_storage(elements) bind(C)!, name='create_storage')
+       use, intrinsic :: iso_c_binding, only: c_ptr
+       implicit none
+       integer     :: elements
+       type(c_ptr) :: create_storage
+     end function create_storage
+
+     subroutine destroy_storage(p) bind(C)!, name='destroy_storage')
+       use, intrinsic :: iso_c_binding, only: c_ptr
+       implicit none
+       type(c_ptr), intent(in), value :: p
+     end subroutine destroy_storage
+
      subroutine get_header(nx, ny, nbyte, qx, qy, info_array, error_flag) bind(C)
        use iso_c_binding
        integer                  :: nx, ny, nbyte
@@ -128,19 +141,21 @@ module generic_source
        integer                  :: error_flag
        integer, dimension(1024) :: info_array
      end subroutine get_header
-  end interface
-  procedure(get_header), pointer :: dll_get_header ! dynamically-linked procedure
-  !
-  ! get_data -> dll_get_data
-  abstract interface
+
      subroutine get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
        use iso_c_binding
        integer                                      :: nx, ny, frame_number
        integer                                      :: error_flag
-       integer(kind=4), dimension(:), allocatable   :: data_array
+       integer(kind=4), dimension(:), allocatable   :: data_array(:)
+       ! In case C should allocate the image array
+       ! integer(c_int), pointer :: data_array(:)
      end subroutine get_data
   end interface
-  procedure(get_data), pointer :: dll_get_data ! dynamically-linked procedure
+  ! dynamically-linked procedures
+  procedure(create_storage),   pointer :: dll_create_storage   
+  procedure(destroy_storage),  pointer :: dll_destroy_storage  
+  procedure(get_header),       pointer :: dll_get_header 
+  procedure(get_data),         pointer :: dll_get_data   
     
 
 
@@ -173,8 +188,10 @@ contains
     integer                            :: error_flag
     type(c_funptr)                     :: fun_get_header_ptr=c_null_funptr
     type(c_funptr)                     :: fun_get_data_ptr=c_null_funptr
-    !type(c_ptr)                        :: handleA=c_null_ptr
-    !type(c_ptr)                        :: handleB=c_null_ptr
+    type(c_funptr)                     :: fun_create_storage_ptr=c_null_funptr
+    type(c_funptr)                     :: fun_destroy_storage_ptr=c_null_funptr
+    ! type(c_ptr)                        :: handleA=c_null_ptr
+    ! type(c_ptr)                        :: handleB=c_null_ptr
 
     write (*, *) "[F] - generic_source_open"
     write (*, *) "      + detector          = <", detector,      ">"
@@ -198,10 +215,10 @@ contains
     handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
 
 
-    !handleA=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-    !write (*,*)  "      + handleA            = <", handleA,        ">"
-    !handleB=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-    !write (*,*)  "      + handleB            = <", handleB,        ">"
+    ! handleA=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
+    ! write (*,*)  "      + handleA            = <", handleA,        ">"
+    ! handleB=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
+    ! write (*,*)  "      + handleB            = <", handleB,        ">"
 
     ! Check if can use handle
     if(.not.c_associated(handle)) then
@@ -228,6 +245,22 @@ contains
        error_flag = -4
     else
        call c_f_procpointer(cptr=fun_get_header_ptr, fptr=dll_get_header)
+    endif
+    !
+    fun_create_storage_ptr = DLSym(handle,"create_storage")
+    if(.not.c_associated(fun_create_storage_ptr))  then
+       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
+       error_flag = -4
+    else
+       call c_f_procpointer(cptr=fun_create_storage_ptr, fptr=dll_create_storage)
+    endif
+    !
+    fun_destroy_storage_ptr = DLSym(handle,"destroy_storage")
+    if(.not.c_associated(fun_destroy_storage_ptr))  then
+       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
+       error_flag = -4
+    else
+       call c_f_procpointer(cptr=fun_destroy_storage_ptr, fptr=dll_destroy_storage)
     endif
  
     
@@ -295,7 +328,9 @@ contains
 
     integer                                       :: nx, ny, frame_number
     integer                                       :: error_flag
-    integer(kind=4), dimension (:), allocatable   :: data_array
+    integer(kind=4), dimension (:), allocatable   :: data_array(:)
+    ! In case C should allocate the image array
+    ! integer(c_int), pointer :: data_array(:)
 
     write (*, *) "[F] - generic_source_data"
     write (*, *) "      + handle       = <", handle,       ">"
@@ -362,8 +397,12 @@ program image_consumer
   integer                                       :: nx=0, ny=0, nbyte=0, frame_number
   real(kind=4)                                  :: qx=0, qy=0
   integer, dimension(1024)                      :: info_array
-  integer(kind=4), dimension (:), allocatable   :: data_array
-
+  integer(kind=4), dimension (:), allocatable   :: data_array(:)
+  ! in case c should allocate the image array
+  ! type(c_ptr) :: p
+  ! integer(c_int), pointer :: data_array(:)
+  
+ 
   number_of_arguments=command_argument_count()
 
   if(number_of_arguments == 1 ) then
@@ -396,19 +435,22 @@ program image_consumer
         write (*, *) "      + info_array(1) = <", info_array(1) ,">"
         write (*, *) "      + info_array(2) = <", info_array(2) ,">"
         write (*, *) "      + error_flag    = <", error_flag,">"
-        allocate (data_array(ny *nx))
 
-
+        ! In case C should allocate the image array
+        ! p = dll_create_storage(ny *nx)
+        ! call c_f_pointer(p, data_array, [ny *nx])   ! 4 is the array size.
         if (0/=error_flag) then
            stop
         else
            
            ! One must place the total number of frames somewhere in the info array
            frame_number = 1
+           allocate (data_array(ny *nx))
            data_array(1)  =   1
+           data_array(5)  =   5
            data_array(10) =  10
            data_array(31) =  31
-
+           
 
            call generic_source_data(frame_number, nx, ny, data_array, error_flag)
            write (*, *) "[F] - generic_source_data"
@@ -417,6 +459,8 @@ program image_consumer
            write (*, *) "      + error_flag    = <", error_flag,   ">"
         endif
         
+        ! In case C should allocate the image array
+        ! call dll_destroy_storage(p)
         call generic_source_close(error_flag)
      endif
   else

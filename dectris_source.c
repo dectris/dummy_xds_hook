@@ -8,8 +8,22 @@
   Dummy C external reader function
 */
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+
+int *create_storage(int *elements)
+{
+   /* Array of four integers. */
+  printf(" [C] - create_storage(%d)\n", (*elements));
+  return malloc(sizeof(int) * (*elements));
+}
+
+void destroy_storage(int *ptr)
+{
+  printf(" [C] - destroy_storage\n");
+  free(ptr);
+}
 
 /*    Arguments:
       'frame_number' (*int)  input number of pixels along x 
@@ -21,31 +35,44 @@
                                      -1 Library not loaded (provided on the fortran side)
                                      -2 Cannot read frame
 */
-void get_data (int *frame_number, int *nx, int *ny, int *data_array[] , int *error_flag)
+void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error_flag)
 {
 
   printf(" [C] - get_data\n");
   printf("       + nx,ny         = < %d, %d >\n", *nx, *ny);
   //printf("       + len(array) = < %d >\n", (int)(sizeof(iptr)));
+  int old_data;
+  for (int i=0; i<((*nx)*(*ny)); i++){
+    old_data = data_array[i];
+    //data_array[i] = i;  
+    printf ("       + [%d] = %d -> %d\n", i, old_data, data_array[i]);
+  }
 
+  //printf("       + data_array[2] = < %d >\n", data_array[2]);
+  //data_array[2] = 2654;
+  //printf("       + data_array[2] = < %d >\n", data_array[2]);
+
+  //for (int i=0; i<=10; i++){ 
+  //  data_array [i] = 0xdeadf00+i; // 233496320
+  // }
 
   // return;
 
   // printf("       + len(array) = < %d >\n", (int)(sizeof(data_array)/sizeof(data_array[0])));
   // printf("       + len(array) = < %d >\n", (int)(sizeof(data_array[0])/sizeof(data_array[0][0])));
 
-  for (int i=0; i<*ny; i++){
-      for (int j=0; j<*nx; j++){
-	printf("data_array[%d][%d]=%d\n",i,j,data_array[j+(*ny)*i]);
-      }
-  }
+  //for (int i=0; i<*ny; i++){
+  //    for (int j=0; j<*nx; j++){
+  //	printf("data_array[%d][%d]=%d\n",i,j,data_array[j+(*nx)*i]);
+  //    }
+  // }
   // data_array[0][0] = 112;
   //for (int i=0; i<=*nx; i++){ 
   //  for (int j = 0; j <= *ny;j++){
   //    iptr[i+((*nx)*j)] = i+j; // 233496320
   //  }
   // }
-  *error_flag = 0;
+  *error_flag = 1;
 
   return;
 }
