@@ -135,9 +135,9 @@ module generic_source
   abstract interface
      subroutine get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
        use iso_c_binding
-       integer                                    :: nx, ny, frame_number
-       integer                                    :: error_flag
-       integer(kind=4), dimension(:), allocatable :: data_array
+       integer                                      :: nx, ny, frame_number
+       integer                                      :: error_flag
+       integer(kind=4), dimension(:), allocatable   :: data_array
      end subroutine get_data
   end interface
   procedure(get_data), pointer :: dll_get_data ! dynamically-linked procedure
@@ -293,14 +293,14 @@ contains
     use dlfcn
     implicit none    
 
-    integer                                     :: nx, ny, frame_number
-    integer                                     :: error_flag
-    integer(kind=4), dimension (:), allocatable :: data_array
+    integer                                       :: nx, ny, frame_number
+    integer                                       :: error_flag
+    integer(kind=4), dimension (:), allocatable   :: data_array
 
     write (*, *) "[F] - generic_source_data"
     write (*, *) "      + handle       = <", handle,       ">"
     write (*, *) "      + frame_number = <", frame_number, ">"
-    write (*, *) "      + nx, ny       = <", ny, ",", ny,  ">"
+    write (*, *) "      + nx, ny       = <", nx, ",", ny,  ">"
 
  
     !   ! finally, invoke the dynamically-linked subroutine:
@@ -354,15 +354,15 @@ program image_consumer
   implicit none
 
 
-  integer                                     :: number_of_arguments, cptArg
-  logical                                     :: external_source_flag=.FALSE.
-  character(len=20)                           :: name
-  character(len=:), allocatable               :: detector, template_name
-  integer                                     :: error_flag
-  integer                                     :: nx=0, ny=0, nbyte=0, frame_number
-  real(kind=4)                                :: qx=0, qy=0
-  integer, dimension(1024)                    :: info_array
-  integer(kind=4), dimension (:), allocatable :: data_array
+  integer                                       :: number_of_arguments, cptArg
+  logical                                       :: external_source_flag=.FALSE.
+  character(len=20)                             :: name
+  character(len=:), allocatable                 :: detector, template_name
+  integer                                       :: error_flag
+  integer                                       :: nx=0, ny=0, nbyte=0, frame_number
+  real(kind=4)                                  :: qx=0, qy=0
+  integer, dimension(1024)                      :: info_array
+  integer(kind=4), dimension (:), allocatable   :: data_array
 
   number_of_arguments=command_argument_count()
 
@@ -396,6 +396,7 @@ program image_consumer
         write (*, *) "      + info_array(1) = <", info_array(1) ,">"
         write (*, *) "      + info_array(2) = <", info_array(2) ,">"
         write (*, *) "      + error_flag    = <", error_flag,">"
+        allocate (data_array(ny *nx))
 
 
         if (0/=error_flag) then
@@ -404,7 +405,10 @@ program image_consumer
            
            ! One must place the total number of frames somewhere in the info array
            frame_number = 1
-           allocate (data_array(nx*ny))
+           data_array(1)  =   1
+           data_array(10) =  10
+           data_array(31) =  31
+
 
            call generic_source_data(frame_number, nx, ny, data_array, error_flag)
            write (*, *) "[F] - generic_source_data"

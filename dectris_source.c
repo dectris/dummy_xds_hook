@@ -21,18 +21,32 @@
                                      -1 Library not loaded (provided on the fortran side)
                                      -2 Cannot read frame
 */
-void get_data (int *frame_number, int *nx, int *ny, int data_array[] , int *error_flag)
+void get_data (int *frame_number, int *nx, int *ny, int *data_array[] , int *error_flag)
 {
-  printf(" [C] - get_data\n");
-  printf("       + len(array) = < %d >\n", (int)(sizeof(data_array)));
 
-  data_array[0] = 112;
+  printf(" [C] - get_data\n");
+  printf("       + nx,ny         = < %d, %d >\n", *nx, *ny);
+  //printf("       + len(array) = < %d >\n", (int)(sizeof(iptr)));
+
+
+  // return;
+
+  // printf("       + len(array) = < %d >\n", (int)(sizeof(data_array)/sizeof(data_array[0])));
+  // printf("       + len(array) = < %d >\n", (int)(sizeof(data_array[0])/sizeof(data_array[0][0])));
+
+  for (int i=0; i<*ny; i++){
+      for (int j=0; j<*nx; j++){
+	printf("data_array[%d][%d]=%d\n",i,j,data_array[j+(*ny)*i]);
+      }
+  }
+  // data_array[0][0] = 112;
   //for (int i=0; i<=*nx; i++){ 
   //  for (int j = 0; j <= *ny;j++){
-  //    data_array[i+(*nx)*j] = i+j; // 233496320
+  //    iptr[i+((*nx)*j)] = i+j; // 233496320
   //  }
-  //}
+  // }
   *error_flag = 0;
+
   return;
 }
 
@@ -57,8 +71,8 @@ void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy,
 {
 
   // Dummy values
-  *nx       = 123;
-  *ny       = 345;
+  *nx       = 10;
+  *ny       = 5;
   int depth = 32;
 
   *nbyte = depth * (*nx) * (*ny);
