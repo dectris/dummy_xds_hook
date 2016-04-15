@@ -16,14 +16,13 @@
 char *hdf5_master_file_name="";
 
 
-
-/*    Arguments:
-      'hdf5_filename' (*char) input   Name of the HDF5 master file
-      'error_flag' (*int)     output  Provides error state condition
-                                       0 Success
-                                      -4 Error opening HDF5 master file
-*/
 void hdf5_open(char *hdf5_filename, int *error_flag){
+  /*    Arguments:
+	'hdf5_filename' (*char) input   Name of the HDF5 master file
+	'error_flag' (*int)     output  Provides error state condition
+                                         0 Success
+                                        -4 Error opening HDF5 master file
+  */
   
   printf(" [C] - hdf5_open '%s'\n", hdf5_filename );
   hdf5_master_file_name = hdf5_filename;
@@ -33,13 +32,13 @@ void hdf5_open(char *hdf5_filename, int *error_flag){
   return;
 }
 
-/*    Arguments:
-     'error_flag' (*int)     output  Provides error state condition
-                                       0 Success
-                                      -4 Error closing HDF5 master file
-**/
+
 void hdf5_close(int *error_flag){
-  
+  /*    Arguments:
+	'error_flag' (*int)     output  Provides error state condition
+                                         0 Success
+                                        -4 Error closing HDF5 master file
+  */ 
   printf(" [C] - hdf5_close %s\n", hdf5_master_file_name);
 
   *error_flag = 0;
@@ -47,23 +46,23 @@ void hdf5_close(int *error_flag){
   return;
 }
 
-/*    Arguments:
-      'frame_number' (*int)  input number of pixels along x 
-      'nx' (*int)            input number of pixels along x 
-      'ny' (*int)            input number of pixels along y
-      'data_array' (int [])  output image 
-      'error_flag' (*int)    output  Provides error state condition
+
+void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error_flag){
+  /*    Arguments:
+	'frame_number' (*int)  input number of pixels along x 
+	'nx' (*int)            input number of pixels along x 
+	'ny' (*int)            input number of pixels along y
+	'data_array' (int [])  output image 
+	'error_flag' (*int)    output  Provides error state condition
                                       0 Success
                                      -1 Library not loaded (provided on the fortran side)
                                      -2 Cannot read frame
-*/
-void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error_flag)
-{
+  */
 
   printf(" [C] - get_data\n");
   printf("       + nx,ny         = < %d, %d >\n", *nx, *ny);
 
-  //printf("       + len(array) = < %d >\n", (int)(sizeof(iptr)));
+  // Fill in dummy values
   int old_data;
   for (int i=0; i<((*nx)*(*ny)); i++){
     old_data = data_array[i];
@@ -78,28 +77,30 @@ void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error
 }
 
 
-/*    Arguments:
-      'nx' (*int)              output  number of pixels along x 
-      'ny' (*int)              output  number of pixels along y
-      'nbyte' (*int)           output  number of bytes in the image... x*y*depth
-      'qx' (float)             output  pixel size
-      'qy' (float)             output  pixel size
-      'number_of_frames (*int) output  number of available frames
-      'info' (int [])          output  array of (1024) integers:
-                                        - info(0)       = Dectris 
-                                        - info(1)       = version number of the library
-                                        - info(2..1023) = unused
-				      
-      'error_flag' (integer)   output  Provides error state condition
-                                        0 Success
-                                       -1 Library not loaded (provided on the fortran side)
-                                       -2 Header cannot be read
-*/
-void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy, 
-		  int *number_of_frames, int info_array[], int *error_flag)
-{
 
-  // Dummy values
+
+void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy, 
+		  int *number_of_frames, int info_array[], int *error_flag){
+  /*    Arguments:
+	'nx' (*int)              output  number of pixels along x 
+	'ny' (*int)              output  number of pixels along y
+	'nbyte' (*int)           output  number of bytes in the image... x*y*depth
+	'qx' (float)             output  pixel size
+	'qy' (float)             output  pixel size
+	'number_of_frames (*int) output  number of available frames
+	'info' (int [])          output  array of (1024) integers:
+                                          - info(0)       = Dectris 
+                                          - info(1)       = version number of the library
+                                          - info(2..1023) = unused
+				      
+        'error_flag' (integer)   output  Provides error state condition
+                                          0 Success
+                                         -1 Library not loaded (provided on the fortran side)
+                                         -2 Header cannot be read
+  */
+
+
+  // Fill in dummy values
   *nx       = 3;
   *ny       = 5;
   int depth = 32;

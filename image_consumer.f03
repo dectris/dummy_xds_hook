@@ -421,7 +421,6 @@ program image_consumer
 
   implicit none
 
-
   integer                                       :: number_of_arguments, cptArg
   logical                                       :: external_source_flag=.FALSE.
   character(len=20)                             :: name
@@ -432,74 +431,58 @@ program image_consumer
   integer, dimension(1024)                      :: info_array
   integer(kind=4), dimension (:,:), allocatable :: data_array
    
-  number_of_arguments=command_argument_count()
+  
+  write (*,*) "[F] - Loading shared-object"
+  detector      = 'libDectrisSource'
+  template_name = 'path_to_hdf5_master_file/master_file.hdf5'
 
-  if(number_of_arguments == 1 ) then
-     call get_command_argument(1,name)
-          select case(adjustl(name))
-     case("--ext")
-        external_source_flag=.TRUE.
-     case default
-        external_source_flag=.FALSE.
-     end select
-  endif
-  write (*,*) "[F] - External_source_flag:", external_source_flag
- 
-  if (external_source_flag) then
-     write (*,*) "[F] - Loading shared-object"
-     detector      = 'libDectrisSource'
-     template_name = 'path_to_hdf5_master_file/master_file.hdf5'
+  call generic_open(detector, template_name, error_flag)
 
-     call generic_open(detector, template_name, error_flag)
+  if (0/=error_flag) then
+     stop
+  else
 
+     call generic_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
+     write (*,*) "[F] - generic_header"
+     write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
+     write (*,*) "      + nbyte            = <", nbyte,">"
+     write (*,*) "      + qx,qy            = <", qx, ", ", qy,">"
+     write (*,*) "      + number_of_frames = <",number_of_frames ,">"
+     write (*,*) "      + info_array(1)    = <", info_array(1) ,">"
+     write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
+     write (*,*) "      + error_flag       = <", error_flag,">"
+
+     ! In case C should allocate the image array
+     ! p = dll_create_storage(ny *nx)
+     ! call c_f_pointer(p, data_array, [ny *nx])   ! 4 is the array size.
      if (0/=error_flag) then
         stop
      else
-     
-        call generic_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
-        write (*,*) "[F] - generic_header"
-        write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
-        write (*,*) "      + nbyte            = <", nbyte,">"
-        write (*,*) "      + qx,qy            = <", qx, ", ", qy,">"
-        write (*,*) "      + number_of_frames = <",number_of_frames ,">"
-        write (*,*) "      + info_array(1)    = <", info_array(1) ,">"
-        write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
-        write (*,*) "      + error_flag       = <", error_flag,">"
 
-        ! In case C should allocate the image array
-        ! p = dll_create_storage(ny *nx)
-        ! call c_f_pointer(p, data_array, [ny *nx])   ! 4 is the array size.
-        if (0/=error_flag) then
-           stop
-        else
-           
-           ! One must place the total number of frames somewhere in the info array
-           allocate (data_array(ny,nx))
-           do frame_number = 1,number_of_frames
-              write (*,*) "[F] - [FRAME n.",frame_number,"]"
+        ! One must place the total number of frames somewhere in the info array
+        allocate (data_array(ny,nx))
+        do frame_number = 1,number_of_frames
+           write (*,*) "[F] - [FRAME n.",frame_number,"]"
 
-              data_array(1,1)  =   1+frame_number
-              data_array(3,2)  =   5+frame_number
-              data_array(5,3) =  10+frame_number
-           
-              call generic_data(frame_number, nx, ny, data_array, error_flag)
-              ! Eventually oune could call directlly 'dll_get_data()'
-              ! call dll_get_data(frame_number, nx, ny, data_array, error_flag)
-              
-              write (*,*) "[F] - generic_data"
-              write (*,*) "      + frame_number  = <", frame_number, ">"
-              write (*,*) "      + nx,ny         = <", nx, ", ", ny, ">"
-              write (*,*) "      + data_array    = <", data_array,   ">"
-              write (*,*) "      + error_flag    = <", error_flag,   ">"
-           end do
-        endif
-        
-        ! In case C should allocate the image array
-        ! call dll_destroy_storage(p)
-        call generic_close(error_flag)
+           data_array(1,1)  =   1+frame_number
+           data_array(3,2)  =   5+frame_number
+           data_array(5,3) =  10+frame_number
+
+           call generic_data(frame_number, nx, ny, data_array, error_flag)
+           ! Eventually oune could call directlly 'dll_get_data()'
+           ! call dll_get_data(frame_number, nx, ny, data_array, error_flag)
+
+           write (*,*) "[F] - generic_data"
+           write (*,*) "      + frame_number  = <", frame_number, ">"
+           write (*,*) "      + nx,ny         = <", nx, ", ", ny, ">"
+           write (*,*) "      + data_array    = <", data_array,   ">"
+           write (*,*) "      + error_flag    = <", error_flag,   ">"
+        end do
      endif
-  else
-     write (*,*) "[F] - No shared-object required"
+
+     ! In case C should allocate the image array
+     ! call dll_destroy_storage(p)
+     call generic_close(error_flag)
   endif
 
   stop
