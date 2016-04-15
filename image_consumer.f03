@@ -105,15 +105,16 @@ module dlfcn
 ! Wrap up module to abstract the interface from 
 ! http://cims.nyu.edu/~donev/Fortran/DLL/DLL.Forum.txt
 !
-module generic_source
+module generic
   use iso_c_binding
   implicit none
 
-  character(kind=c_char,len=1024) :: dll_name
+  character(kind=c_char,len=1024) :: dll_filename
+  character(kind=c_char,len=1024) :: hdf5_filename
   integer(c_int)                  :: status
   type(c_ptr)                     :: handle=c_null_ptr
 
-  !public                          :: generic_source_open !, generic_source_header, generic_source_data, generic_source_clone
+  !public                          :: generic_open !, generic_header, generic_data, generic_clone
 
   !
   ! Abstract interfaces for C mapped functions
@@ -121,22 +122,24 @@ module generic_source
   !
   ! get_header -> dll_get_header 
   abstract interface
-     function create_storage(elements) bind(C)!, name='create_storage')
-       use, intrinsic :: iso_c_binding, only: c_ptr
-       implicit none
-       integer     :: elements
-       type(c_ptr) :: create_storage
-     end function create_storage
 
-     subroutine destroy_storage(p) bind(C)!, name='destroy_storage')
-       use, intrinsic :: iso_c_binding, only: c_ptr
-       implicit none
-       type(c_ptr), intent(in), value :: p
-     end subroutine destroy_storage
-
-     subroutine get_header(nx, ny, nbyte, qx, qy, info_array, error_flag) bind(C)
+     subroutine hdf5_open(hdf5_filename, error_flag) bind(C)
        use iso_c_binding
-       integer                  :: nx, ny, nbyte
+       integer                  :: error_flag
+       character(kind=c_char)   :: hdf5_filename(*)
+
+
+     end subroutine hdf5_open
+
+     subroutine hdf5_close(error_flag) bind(C)
+       use iso_c_binding
+       integer                  :: error_flag
+
+     end subroutine hdf5_close
+
+     subroutine get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
+       use iso_c_binding
+       integer                  :: nx, ny, nbyte, number_of_frames
        real(kind=4)             :: qx, qy
        integer                  :: error_flag
        integer, dimension(1024) :: info_array
@@ -146,26 +149,27 @@ module generic_source
        use iso_c_binding
        integer                                      :: nx, ny, frame_number
        integer                                      :: error_flag
-       integer(kind=4), dimension(:), allocatable   :: data_array(:)
+       integer(kind=4), dimension(nx:ny)            :: data_array
        ! In case C should allocate the image array
        ! integer(c_int), pointer :: data_array(:)
      end subroutine get_data
   end interface
+
   ! dynamically-linked procedures
-  procedure(create_storage),   pointer :: dll_create_storage   
-  procedure(destroy_storage),  pointer :: dll_destroy_storage  
+  procedure(hdf5_open),        pointer :: dll_hdf5_open
+  procedure(hdf5_close),       pointer :: dll_hdf5_close
   procedure(get_header),       pointer :: dll_get_header 
   procedure(get_data),         pointer :: dll_get_data   
-    
+   
 
 
-  common /generic_vars/ dll_name, status
+  common /generic_vars/ dll_filename, hdf5_filename, status
 
 contains
 
-  ! Open the shared-object 
   ! 
-  subroutine generic_source_open(detector, template_name, error_flag)
+  ! Open the shared-object 
+  subroutine generic_open(detector, template_name, error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255) input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                                   output value that is awarded by the Library)
@@ -176,8 +180,8 @@ contains
     !                                         0 Success
     !                                        -1 Handle already exists
     !                                        -2 Library not loaded
-    !                                   (!)  -3 Master file cannot be opened (not yet implemented)
-    !                                        -4 Function not found  n library
+    !                                        -3 Function not found in library
+    !                                   (!)  -4 Master file cannot be opened (coning form C function)
     !
     use iso_c_binding
     use iso_c_utilities
@@ -186,16 +190,18 @@ contains
 
     character(len=:), allocatable      :: detector, template_name
     integer                            :: error_flag
-    type(c_funptr)                     :: fun_get_header_ptr=c_null_funptr
-    type(c_funptr)                     :: fun_get_data_ptr=c_null_funptr
-    type(c_funptr)                     :: fun_create_storage_ptr=c_null_funptr
-    type(c_funptr)                     :: fun_destroy_storage_ptr=c_null_funptr
-    ! type(c_ptr)                        :: handleA=c_null_ptr
-    ! type(c_ptr)                        :: handleB=c_null_ptr
+    type(c_funptr)                     :: fun_get_header_ptr = c_null_funptr
+    type(c_funptr)                     :: fun_get_data_ptr   = c_null_funptr
+    type(c_funptr)                     :: fun_hdf5_open_ptr  = c_null_funptr
+    type(c_funptr)                     :: fun_hdf5_close_ptr = c_null_funptr
+    integer                            :: external_error_flag
 
-    write (*, *) "[F] - generic_source_open"
-    write (*, *) "      + detector          = <", detector,      ">"
-    write (*, *) "      + template_name     = <", template_name, ">"
+
+    error_flag=0
+
+    write (*,*) "[F] - generic_open"
+    write (*,*) "      + detector          = <", detector,      ">"
+    write (*,*) "      + template_name     = <", template_name, ">"
     write (*,*)  "      + handle (original) = <", handle,        ">"
 
     if ( c_associated(handle) ) then
@@ -206,20 +212,20 @@ contains
 
 
 
-    dll_name=detector//".so"
+    dll_filename=detector//".so"
     error_flag = 0 
-    write (*,*)  "      + dll name         = <", trim(dll_name)//C_NULL_CHAR, ">"
+    write (*,*)  "      + dll_filename    = <", trim(dll_filename)//C_NULL_CHAR, ">"
+ 
+    hdf5_filename=trim(template_name)//C_NULL_CHAR
+    error_flag = 0 
+    write (*,*)  "      + hdf5_filename   = <", trim(hdf5_filename)//C_NULL_CHAR, ">"
 
+    !
     ! Open the DL:
     ! The use of IOR is not really proper...wait till Fortran 2008  
-    handle=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
+    handle=dlopen(trim(dll_filename)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
 
-
-    ! handleA=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-    ! write (*,*)  "      + handleA            = <", handleA,        ">"
-    ! handleB=dlopen(trim(dll_name)//C_NULL_CHAR, IOR(RTLD_NOW, RTLD_GLOBAL))
-    ! write (*,*)  "      + handleB            = <", handleB,        ">"
-
+    !
     ! Check if can use handle
     if(.not.c_associated(handle)) then
        write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
@@ -234,7 +240,7 @@ contains
     fun_get_data_ptr   = DLSym(handle,"get_data")
     if(.not.c_associated(fun_get_data_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -4
+       error_flag = -3
     else
        call c_f_procpointer(cptr=fun_get_data_ptr,   fptr=dll_get_data)
     endif
@@ -242,35 +248,41 @@ contains
     fun_get_header_ptr = DLSym(handle,"get_header")
     if(.not.c_associated(fun_get_header_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -4
+       error_flag = -3
     else
        call c_f_procpointer(cptr=fun_get_header_ptr, fptr=dll_get_header)
     endif
     !
-    fun_create_storage_ptr = DLSym(handle,"create_storage")
-    if(.not.c_associated(fun_create_storage_ptr))  then
+    fun_hdf5_open_ptr   = DLSym(handle,"hdf5_open")
+    if(.not.c_associated(fun_hdf5_open_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -4
+       error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_create_storage_ptr, fptr=dll_create_storage)
+       call c_f_procpointer(cptr=fun_hdf5_open_ptr,   fptr=dll_hdf5_open)
     endif
     !
-    fun_destroy_storage_ptr = DLSym(handle,"destroy_storage")
-    if(.not.c_associated(fun_destroy_storage_ptr))  then
+    fun_hdf5_close_ptr = DLSym(handle,"hdf5_close")
+    if(.not.c_associated(fun_hdf5_close_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -4
+       error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_destroy_storage_ptr, fptr=dll_destroy_storage)
+       call c_f_procpointer(cptr=fun_hdf5_close_ptr, fptr=dll_hdf5_close)
     endif
- 
-    
+
+
+    if (0/=error_flag) then
+       return
+    endif
+       
+    call dll_hdf5_open(hdf5_filename, external_error_flag)
+    error_flag = external_error_flag
+
     return     
-  end subroutine generic_source_open
+  end subroutine generic_open
 
-
+  !
   ! Get the header
-  ! 
-  subroutine generic_source_header(nx, ny, nbyte, qx, qy, info_array, error_flag)
+  subroutine generic_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255)  input   Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                                     output value that is awarded by the Library)
@@ -293,14 +305,14 @@ contains
     use dlfcn
     implicit none    
     
-    integer                            :: nx, ny, nbyte
+    integer                            :: nx, ny, nbyte, number_of_frames
     real(kind=4)                       :: qx, qy
     integer                            :: error_flag
     integer                            :: external_error_flag
     integer, dimension(1024)           :: info_array
     error_flag=0
 
-    write (*, *) "[F] - generic_source_header"
+    write (*,*) "[F] - generic_header"
     write (*,*)  "      + handle            = <", handle,        ">"
 
     ! Check if can use handle
@@ -311,16 +323,16 @@ contains
     end if
  
     ! finally, invoke the dynamically-linked subroutine:
-    call dll_get_header(nx, ny, nbyte, qx, qy, info_array, external_error_flag)
+    call dll_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
 
     error_flag = external_error_flag
     return 
-  end subroutine generic_source_header
+  end subroutine generic_header
 
 
-  ! Dynamically map function and execute it 
   ! 
-  subroutine generic_source_data(frame_number, nx, ny, data_array, error_flag)
+  ! Dynamically map function and execute it 
+  subroutine generic_data(frame_number, nx, ny, data_array, error_flag)
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
@@ -328,32 +340,33 @@ contains
 
     integer                                       :: nx, ny, frame_number
     integer                                       :: error_flag
-    integer(kind=4), dimension (:), allocatable   :: data_array(:)
+    integer(kind=4), dimension (nx:ny)            :: data_array
     ! In case C should allocate the image array
     ! integer(c_int), pointer :: data_array(:)
 
-    write (*, *) "[F] - generic_source_data"
-    write (*, *) "      + handle       = <", handle,       ">"
-    write (*, *) "      + frame_number = <", frame_number, ">"
-    write (*, *) "      + nx, ny       = <", nx, ",", ny,  ">"
+    write (*,*) "[F] - generic_data"
+    write (*,*) "      + handle       = <", handle,       ">"
+    write (*,*) "      + frame_number = <", frame_number, ">"
+    write (*,*) "      + nx, ny       = <", nx, ",", ny,  ">"
 
  
-    !   ! finally, invoke the dynamically-linked subroutine:
+    ! invoke the dynamically-linked subroutine:
     call dll_get_data(frame_number, nx, ny, data_array, error_flag)
-    write (*, *) "[F] - data array:"
+    write (*,*) "[F] - data array:"
     
-  end subroutine generic_source_data
+  end subroutine generic_data
 
   ! Close the shared-object 
   ! 
-  subroutine generic_source_close(error_flag)
+  subroutine generic_close(error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255) input. Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                            output value that is awarded by the Library)
     !                            (!) -> Not implemented
     !      'ERROR_FLAG' integer  output Return values:
     !                                     0 Success
-    !                                    -1 Error closing shared-object
+    !                                    -1 Error closing Materfile
+    !                                    -2 Error closing Shared-object
 
     use iso_c_binding
     use iso_c_utilities
@@ -361,8 +374,13 @@ contains
     implicit none    
 
     integer     :: error_flag
+    integer     :: external_error_flag
 
-    write (*, *) "[F] - generic_source_close:handle <", handle,">"
+    write (*,*) "[F] - generic_close"
+    write (*,*) "      + handle       = <", handle,">"
+    
+    call dll_hdf5_close(external_error_flag)
+    error_flag = external_error_flag
 
     ! now close the dl:
     status=dlclose(handle)
@@ -374,9 +392,24 @@ contains
     end if
 
     return 
-  end subroutine generic_source_close
+  end subroutine generic_close
 
-end module generic_source
+end module generic
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 !
@@ -384,7 +417,7 @@ end module generic_source
 !
 program image_consumer
   !use iso_c_binding
-  use generic_source
+  use generic
 
   implicit none
 
@@ -394,15 +427,11 @@ program image_consumer
   character(len=20)                             :: name
   character(len=:), allocatable                 :: detector, template_name
   integer                                       :: error_flag
-  integer                                       :: nx=0, ny=0, nbyte=0, frame_number
+  integer                                       :: nx=0, ny=0, nbyte=0, frame_number, number_of_frames
   real(kind=4)                                  :: qx=0, qy=0
   integer, dimension(1024)                      :: info_array
-  integer(kind=4), dimension (:), allocatable   :: data_array(:)
-  ! in case c should allocate the image array
-  ! type(c_ptr) :: p
-  ! integer(c_int), pointer :: data_array(:)
-  
- 
+  integer(kind=4), dimension (:,:), allocatable :: data_array
+   
   number_of_arguments=command_argument_count()
 
   if(number_of_arguments == 1 ) then
@@ -414,27 +443,28 @@ program image_consumer
         external_source_flag=.FALSE.
      end select
   endif
-  write (*, *) "[F] - External_source_flag:", external_source_flag
+  write (*,*) "[F] - External_source_flag:", external_source_flag
  
   if (external_source_flag) then
-     write (*, *) "[F] - Loading shared-object"
+     write (*,*) "[F] - Loading shared-object"
      detector      = 'libDectrisSource'
-     template_name = 'path_to_hdf5_master_file'
+     template_name = 'path_to_hdf5_master_file/master_file.hdf5'
 
-     call generic_source_open(detector, template_name, error_flag)
+     call generic_open(detector, template_name, error_flag)
 
      if (0/=error_flag) then
         stop
      else
      
-        call generic_source_header(nx, ny, nbyte, qx, qy, info_array, error_flag) ! INFO_ARRAY, error_flag)
-        write (*, *) "[F] - generic_source_header"
-        write (*, *) "      + nx,ny         = <", nx, ", ", ny,">"
-        write (*, *) "      + nbyte         = <", nbyte,">"
-        write (*, *) "      + qx,qy         = <", qx, ", ", qy,">"
-        write (*, *) "      + info_array(1) = <", info_array(1) ,">"
-        write (*, *) "      + info_array(2) = <", info_array(2) ,">"
-        write (*, *) "      + error_flag    = <", error_flag,">"
+        call generic_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
+        write (*,*) "[F] - generic_header"
+        write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
+        write (*,*) "      + nbyte            = <", nbyte,">"
+        write (*,*) "      + qx,qy            = <", qx, ", ", qy,">"
+        write (*,*) "      + number_of_frames = <",number_of_frames ,">"
+        write (*,*) "      + info_array(1)    = <", info_array(1) ,">"
+        write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
+        write (*,*) "      + error_flag       = <", error_flag,">"
 
         ! In case C should allocate the image array
         ! p = dll_create_storage(ny *nx)
@@ -444,27 +474,32 @@ program image_consumer
         else
            
            ! One must place the total number of frames somewhere in the info array
-           frame_number = 1
-           allocate (data_array(ny *nx))
-           data_array(1)  =   1
-           data_array(5)  =   5
-           data_array(10) =  10
-           data_array(31) =  31
-           
+           allocate (data_array(ny,nx))
+           do frame_number = 1,number_of_frames
+              write (*,*) "[F] - [FRAME n.",frame_number,"]"
 
-           call generic_source_data(frame_number, nx, ny, data_array, error_flag)
-           write (*, *) "[F] - generic_source_data"
-           write (*, *) "      + nx,ny         = <", nx, ", ", ny, ">"
-           write (*, *) "      + data_array    = <", data_array,   ">"
-           write (*, *) "      + error_flag    = <", error_flag,   ">"
+              data_array(1,1)  =   1+frame_number
+              data_array(3,2)  =   5+frame_number
+              data_array(5,3) =  10+frame_number
+           
+              call generic_data(frame_number, nx, ny, data_array, error_flag)
+              ! Eventually oune could call directlly 'dll_get_data()'
+              ! call dll_get_data(frame_number, nx, ny, data_array, error_flag)
+              
+              write (*,*) "[F] - generic_data"
+              write (*,*) "      + frame_number  = <", frame_number, ">"
+              write (*,*) "      + nx,ny         = <", nx, ", ", ny, ">"
+              write (*,*) "      + data_array    = <", data_array,   ">"
+              write (*,*) "      + error_flag    = <", error_flag,   ">"
+           end do
         endif
         
         ! In case C should allocate the image array
         ! call dll_destroy_storage(p)
-        call generic_source_close(error_flag)
+        call generic_close(error_flag)
      endif
   else
-     write (*, *) "[F] - No shared-object required"
+     write (*,*) "[F] - No shared-object required"
   endif
 
   stop

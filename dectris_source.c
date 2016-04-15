@@ -11,18 +11,40 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
-int *create_storage(int *elements)
-{
-   /* Array of four integers. */
-  printf(" [C] - create_storage(%d)\n", (*elements));
-  return malloc(sizeof(int) * (*elements));
+char *hdf5_master_file_name="";
+
+
+
+/*    Arguments:
+      'hdf5_filename' (*char) input   Name of the HDF5 master file
+      'error_flag' (*int)     output  Provides error state condition
+                                       0 Success
+                                      -4 Error opening HDF5 master file
+*/
+void hdf5_open(char *hdf5_filename, int *error_flag){
+  
+  printf(" [C] - hdf5_open '%s'\n", hdf5_filename );
+  hdf5_master_file_name = hdf5_filename;
+
+  *error_flag = 0;
+  // *error_flag = -4; // Masterfile cannot be opened
+  return;
 }
 
-void destroy_storage(int *ptr)
-{
-  printf(" [C] - destroy_storage\n");
-  free(ptr);
+/*    Arguments:
+     'error_flag' (*int)     output  Provides error state condition
+                                       0 Success
+                                      -4 Error closing HDF5 master file
+**/
+void hdf5_close(int *error_flag){
+  
+  printf(" [C] - hdf5_close %s\n", hdf5_master_file_name);
+
+  *error_flag = 0;
+  // *error_flag = -4; // Masterfile cannot be closed
+  return;
 }
 
 /*    Arguments:
@@ -40,84 +62,72 @@ void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error
 
   printf(" [C] - get_data\n");
   printf("       + nx,ny         = < %d, %d >\n", *nx, *ny);
+
   //printf("       + len(array) = < %d >\n", (int)(sizeof(iptr)));
   int old_data;
   for (int i=0; i<((*nx)*(*ny)); i++){
     old_data = data_array[i];
-    //data_array[i] = i;  
+    data_array[i] = i;  
     printf ("       + [%d] = %d -> %d\n", i, old_data, data_array[i]);
   }
 
-  //printf("       + data_array[2] = < %d >\n", data_array[2]);
-  //data_array[2] = 2654;
-  //printf("       + data_array[2] = < %d >\n", data_array[2]);
-
-  //for (int i=0; i<=10; i++){ 
-  //  data_array [i] = 0xdeadf00+i; // 233496320
-  // }
-
-  // return;
-
-  // printf("       + len(array) = < %d >\n", (int)(sizeof(data_array)/sizeof(data_array[0])));
-  // printf("       + len(array) = < %d >\n", (int)(sizeof(data_array[0])/sizeof(data_array[0][0])));
-
-  //for (int i=0; i<*ny; i++){
-  //    for (int j=0; j<*nx; j++){
-  //	printf("data_array[%d][%d]=%d\n",i,j,data_array[j+(*nx)*i]);
-  //    }
-  // }
-  // data_array[0][0] = 112;
-  //for (int i=0; i<=*nx; i++){ 
-  //  for (int j = 0; j <= *ny;j++){
-  //    iptr[i+((*nx)*j)] = i+j; // 233496320
-  //  }
-  // }
-  *error_flag = 1;
+  *error_flag = 0;
+  // *error_flag = -2; // Frame can't be read
 
   return;
 }
 
 
 /*    Arguments:
-      'nx' (*int)            output  number of pixels along x 
-      'ny' (*int)            output  number of pixels along y
-      'nbyte' (*int)         output  number of bytes in the image... x*y*depth
-      'qx' (float)           output  pixel size
-      'qy' (float)           output  pixel size
-      'info' (int [])        output  array of (1024) integers:
-                                      - info(0)       = Dectris 
-                                      - info(1)       = version number of the library
-                                      - info(2..1023) = unused
-      'error_flag' (integer) output  Provides error state condition
-                                      0 Success
-                                     -1 Library not loaded (provided on the fortran side)
-                                     -2 Cannot read header
+      'nx' (*int)              output  number of pixels along x 
+      'ny' (*int)              output  number of pixels along y
+      'nbyte' (*int)           output  number of bytes in the image... x*y*depth
+      'qx' (float)             output  pixel size
+      'qy' (float)             output  pixel size
+      'number_of_frames (*int) output  number of available frames
+      'info' (int [])          output  array of (1024) integers:
+                                        - info(0)       = Dectris 
+                                        - info(1)       = version number of the library
+                                        - info(2..1023) = unused
+				      
+      'error_flag' (integer)   output  Provides error state condition
+                                        0 Success
+                                       -1 Library not loaded (provided on the fortran side)
+                                       -2 Header cannot be read
 */
 void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy, 
-		  int info_array[], int *error_flag)
+		  int *number_of_frames, int info_array[], int *error_flag)
 {
 
   // Dummy values
-  *nx       = 10;
+  *nx       = 3;
   *ny       = 5;
   int depth = 32;
 
   *nbyte = depth * (*nx) * (*ny);
   printf(" [C] - get_header\n");
-  printf("       + nx,ny         = < %d, %d >\n", *nx, *ny);
-  printf("       + nbyte         = < %d >\n", *nbyte);
+  printf("       + nx,ny            = < %d, %d >\n", *nx, *ny);
+  printf("       + nbyte            = < %d >\n", *nbyte);
 
   *qx         = 75.e-6;
   *qy         = 75.e-6;
-  *error_flag = 0;
-  printf("       + qx,qy         = < %f, %f >\n", *qx, *qy);
-  printf("       + error_flag    = < %d > \n", *error_flag);
+  printf("       + qx,qy            = < %f, %f >\n", *qx, *qy);
+ 
+  *number_of_frames = 3;
+  printf("       + number_of_frames = < %d >\n", *number_of_frames);
 
   info_array[0] = 100;
   info_array[1] = 200;
-  printf("       + array_info[0] = < %d >\n", info_array[0]);
-  printf("       + array_info[1] = < %d >\n", info_array[1]);
+  printf("       + array_info[0]    = < %d >\n", info_array[0]);
+  printf("       + array_info[1]    = < %d >\n", info_array[1]);
  
+
+  *error_flag = 0;
+  printf("       + error_flag       = < %d > \n", *error_flag);
+
+
+  // *error_flag = -2; // Header can't be read
+
   return;
 }
 
