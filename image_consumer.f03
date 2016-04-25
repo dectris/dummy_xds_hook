@@ -121,7 +121,7 @@ module dlfcn
 ! Wrap up module to abstract the interface from 
 ! http://cims.nyu.edu/~donev/Fortran/DLL/DLL.Forum.txt
 !
-module generic
+module generic_data_plugin
   use iso_c_binding
   implicit none
 
@@ -139,43 +139,43 @@ module generic
   ! get_header -> dll_get_header 
   abstract interface
 
-     subroutine image_data_open(image_data_filename, error_flag) bind(C)
+     subroutine plugin_open_file(filename, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)           :: error_flag
-       character(kind=c_char)   :: image_data_filename(*)
+       character(kind=c_char)   :: filename(*)
 
 
-     end subroutine image_data_open
+     end subroutine plugin_open_file
 
-     subroutine image_data_close(error_flag) bind(C)
+     subroutine plugin_close_file(error_flag) bind(C)
        use iso_c_binding
        integer (c_int)          :: error_flag
 
-     end subroutine image_data_close
+     end subroutine plugin_close_file
 
-     subroutine get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
+     subroutine plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)                  :: nx, ny, nbyte, number_of_frames
        real(c_float)                   :: qx, qy
        integer(c_int)                  :: error_flag
        integer(c_int), dimension(1024) :: info_array
-     end subroutine get_header
+     end subroutine plugin_get_header
 
-     subroutine get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
+     subroutine plugin_get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)                   :: nx, ny, frame_number
        integer(c_int)                   :: error_flag
        integer(c_int), dimension(nx:ny) :: data_array
        ! In case C should allocate the image array
        ! integer(c_int), pointer :: data_array(:)
-     end subroutine get_data
+     end subroutine plugin_get_data
   end interface
 
   ! dynamically-linked procedures
-  procedure(image_data_open),  pointer :: dll_image_data_open
-  procedure(image_data_close), pointer :: dll_image_data_close
-  procedure(get_header),       pointer :: dll_get_header 
-  procedure(get_data),         pointer :: dll_get_data   
+  procedure(plugin_open_file),  pointer :: dll_plugin_open_file
+  procedure(plugin_get_header), pointer :: dll_plugin_get_header 
+  procedure(plugin_get_data),   pointer :: dll_plugin_get_data   
+  procedure(plugin_close_file), pointer :: dll_plugin_close_file
    
 
 
@@ -205,10 +205,10 @@ contains
 
     character(len=:), allocatable      :: detector, template_name
     integer(c_int)                     :: error_flag
-    type(c_funptr)                     :: fun_get_header_ptr = c_null_funptr
-    type(c_funptr)                     :: fun_get_data_ptr   = c_null_funptr
-    type(c_funptr)                     :: fun_image_data_open_ptr  = c_null_funptr
-    type(c_funptr)                     :: fun_image_data_close_ptr = c_null_funptr
+    type(c_funptr)                     :: fun_plugin_open_file_ptr   = c_null_funptr
+    type(c_funptr)                     :: fun_plugin_close_file_ptr  = c_null_funptr
+    type(c_funptr)                     :: fun_plugin_get_header_ptr  = c_null_funptr
+    type(c_funptr)                     :: fun_plugin_get_data_ptr    = c_null_funptr
     integer(c_int)                     :: external_error_flag
 
 
@@ -252,36 +252,36 @@ contains
 
     !
     ! Find the subroutines in the DL:
-    fun_get_data_ptr   = DLSym(handle,"get_data")
-    if(.not.c_associated(fun_get_data_ptr))  then
+    fun_plugin_get_data_ptr   = DLSym(handle,"plugin_get_data")
+    if(.not.c_associated(fun_plugin_get_data_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
        error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_get_data_ptr,   fptr=dll_get_data)
+       call c_f_procpointer(cptr=fun_plugin_get_data_ptr,   fptr=dll_plugin_get_data)
     endif
     !
-    fun_get_header_ptr = DLSym(handle,"get_header")
-    if(.not.c_associated(fun_get_header_ptr))  then
+    fun_plugin_get_header_ptr = DLSym(handle,"plugin_get_header")
+    if(.not.c_associated(fun_plugin_get_header_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
        error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_get_header_ptr, fptr=dll_get_header)
+       call c_f_procpointer(cptr=fun_plugin_get_header_ptr, fptr=dll_plugin_get_header)
     endif
     !
-    fun_image_data_open_ptr   = DLSym(handle,"image_data_open")
-    if(.not.c_associated(fun_image_data_open_ptr))  then
+    fun_plugin_open_file_ptr   = DLSym(handle,"plugin_open_file")
+    if(.not.c_associated(fun_plugin_open_file_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
        error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_image_data_open_ptr,   fptr=dll_image_data_open)
+       call c_f_procpointer(cptr=fun_plugin_open_file_ptr,   fptr=dll_plugin_open_file)
     endif
     !
-    fun_image_data_close_ptr = DLSym(handle,"image_data_close")
-    if(.not.c_associated(fun_image_data_close_ptr))  then
+    fun_plugin_close_file_ptr = DLSym(handle,"plugin_close_file")
+    if(.not.c_associated(fun_plugin_close_file_ptr)) then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
        error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_image_data_close_ptr, fptr=dll_image_data_close)
+       call c_f_procpointer(cptr=fun_plugin_close_file_ptr, fptr=dll_plugin_close_file)
     endif
 
 
@@ -289,7 +289,7 @@ contains
        return
     endif
        
-    call dll_image_data_open(image_data_filename, external_error_flag)
+    call dll_plugin_open_file(image_data_filename, external_error_flag)
     error_flag = external_error_flag
 
     return     
@@ -297,7 +297,7 @@ contains
 
   !
   ! Get the header
-  subroutine generic_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
+  subroutine generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255)  input   Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                                     output value that is awarded by the Library)
@@ -338,16 +338,16 @@ contains
     end if
  
     ! finally, invoke the dynamically-linked subroutine:
-    call dll_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
+    call dll_plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
 
     error_flag = external_error_flag
     return 
-  end subroutine generic_header
+  end subroutine generic_get_header
 
 
   ! 
   ! Dynamically map function and execute it 
-  subroutine generic_data(frame_number, nx, ny, data_array, error_flag)
+  subroutine generic_get_data(frame_number, nx, ny, data_array, error_flag)
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
@@ -366,10 +366,10 @@ contains
 
  
     ! invoke the dynamically-linked subroutine:
-    call dll_get_data(frame_number, nx, ny, data_array, error_flag)
+    call dll_plugin_get_data(frame_number, nx, ny, data_array, error_flag)
     write (*,*) "[F] - data array:"
     
-  end subroutine generic_data
+  end subroutine generic_get_data
 
   ! Close the shared-object 
   ! 
@@ -394,7 +394,7 @@ contains
     write (*,*) "[F] - generic_close"
     write (*,*) "      + handle       = <", handle,">"
     
-    call dll_image_data_close(external_error_flag)
+    call dll_plugin_close_file(external_error_flag)
     error_flag = external_error_flag
 
     ! now close the dl:
@@ -409,7 +409,7 @@ contains
     return 
   end subroutine generic_close
 
-end module generic
+end module generic_data_plugin
 
 
 
@@ -431,8 +431,8 @@ end module generic
 ! Dummy shared object consumer
 !
 program image_consumer
-  !use iso_c_binding
-  use generic
+  use iso_c_binding
+  use generic_data_plugin
 
   implicit none
 

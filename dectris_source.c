@@ -34,7 +34,7 @@
 char *image_data_master_file_name="";
 
 
-void image_data_open(char *image_data_filename, int *error_flag){
+void plugin_open_file(char *filename, int *error_flag){
   /*    Arguments:
 	'image_data_filename' (*char) input   Name of the HDF5 master file
 	'error_flag' (*int)     output  Provides error state condition
@@ -42,8 +42,8 @@ void image_data_open(char *image_data_filename, int *error_flag){
                                         -4 Error opening HDF5 master file
   */
   
-  printf(" [C] - image_data_open '%s'\n", image_data_filename );
-  image_data_master_file_name = image_data_filename;
+  printf(" [C] - image_data_open '%s'\n", filename );
+  image_data_master_file_name = filename;
 
   *error_flag = 0;
   // *error_flag = -4; // Masterfile cannot be opened
@@ -51,7 +51,7 @@ void image_data_open(char *image_data_filename, int *error_flag){
 }
 
 
-void image_data_close(int *error_flag){
+void plugin_close_file(int *error_flag){
   /*    Arguments:
 	'error_flag' (*int)     output  Provides error state condition
                                          0 Success
@@ -65,7 +65,7 @@ void image_data_close(int *error_flag){
 }
 
 
-void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error_flag){
+void plugin_get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error_flag){
   /*    Arguments:
 	'frame_number' (*int)  input number of pixels along x 
 	'nx' (*int)            input number of pixels along x 
@@ -97,7 +97,7 @@ void get_data (int *frame_number, int *nx, int *ny, int data_array[], int *error
 
 
 
-void get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy, 
+void plugin_get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy, 
 		  int *number_of_frames, int info_array[], int *error_flag){
   /*    Arguments:
 	'nx' (*int)              output  number of pixels along x 
