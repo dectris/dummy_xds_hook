@@ -184,7 +184,7 @@ contains
 
   ! 
   ! Open the shared-object 
-  subroutine generic_open(detector, template_name, error_flag)
+  subroutine generic_open_file(detector, template_name, error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255) input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                                   output value that is awarded by the Library)
@@ -214,7 +214,7 @@ contains
 
     error_flag=0
 
-    write (*,*) "[F] - generic_open"
+    write (*,*) "[F] - generic_open_file"
     write (*,*) "      + detector          = <", detector,      ">"
     write (*,*) "      + template_name     = <", template_name, ">"
     write (*,*)  "      + handle (original) = <", handle,        ">"
@@ -293,7 +293,7 @@ contains
     error_flag = external_error_flag
 
     return     
-  end subroutine generic_open
+  end subroutine generic_open_file
 
   !
   ! Get the header
@@ -327,7 +327,7 @@ contains
     integer(c_int), dimension(1024)  :: info_array
     error_flag=0
 
-    write (*,*) "[F] - generic_header"
+    write (*,*) "[F] - generic_get_header"
     write (*,*)  "      + handle            = <", handle,        ">"
 
     ! Check if can use handle
@@ -359,7 +359,7 @@ contains
     ! In case C should allocate the image array
     ! integer(c_int), pointer :: data_array(:)
 
-    write (*,*) "[F] - generic_data"
+    write (*,*) "[F] - generic_get_data"
     write (*,*) "      + handle       = <", handle,       ">"
     write (*,*) "      + frame_number = <", frame_number, ">"
     write (*,*) "      + nx, ny       = <", nx, ",", ny,  ">"
@@ -373,7 +373,7 @@ contains
 
   ! Close the shared-object 
   ! 
-  subroutine generic_close(error_flag)
+  subroutine generic_close_file(error_flag)
     ! Requirements:
     !  (!) 'ID' (integer 0..255) input. Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
     !                            output value that is awarded by the Library)
@@ -391,7 +391,7 @@ contains
     integer(c_int) :: error_flag
     integer(c_int) :: external_error_flag
 
-    write (*,*) "[F] - generic_close"
+    write (*,*) "[F] - generic_close_file"
     write (*,*) "      + handle       = <", handle,">"
     
     call dll_plugin_close_file(external_error_flag)
@@ -407,7 +407,7 @@ contains
     end if
 
     return 
-  end subroutine generic_close
+  end subroutine generic_close_file
 
 end module generic_data_plugin
 
@@ -451,13 +451,13 @@ program image_consumer
   detector      = 'libDectrisSource'
   template_name = 'path_to_image_data_master_file/master_file.extension'
 
-  call generic_open(detector, template_name, error_flag)
+  call generic_open_file(detector, template_name, error_flag)
 
   if (0/=error_flag) then
      stop
   else
 
-     call generic_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
+     call generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
      write (*,*) "[F] - generic_header"
      write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
      write (*,*) "      + nbyte            = <", nbyte,">"
@@ -483,7 +483,7 @@ program image_consumer
            data_array(3,2)  =   5+frame_number
            data_array(5,3) =  10+frame_number
 
-           call generic_data(frame_number, nx, ny, data_array, error_flag)
+           call generic_get_data(frame_number, nx, ny, data_array, error_flag)
            ! Eventually oune could call directlly 'dll_get_data()'
            ! call dll_get_data(frame_number, nx, ny, data_array, error_flag)
 
@@ -495,9 +495,7 @@ program image_consumer
         end do
      endif
 
-     ! In case C should allocate the image array
-     ! call dll_destroy_storage(p)
-     call generic_close(error_flag)
+     call generic_close_file(error_flag)
   endif
 
   stop
