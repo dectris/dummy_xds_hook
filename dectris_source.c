@@ -1,9 +1,27 @@
 /*
-  Copyright (C) 2016
-  Dectris Ltd., Taefernweg 1, 5405 Baden-Daettwil, Switzerland.
-  All rights reserved.
+  This is free and unencumbered software released into the public domain.
+
+  Anyone is free to copy, modify, publish, use, compile, sell, or distribute this software, 
+  either in source code form or as a compiled binary, for any purpose, commercial or non-commercial,
+  and by any means.
+
+  In jurisdictions that recognize copyright laws, the author or authors of this software dedicate 
+  any and all copyright interest in the software to the public domain. We make this dedication for
+  the benefit of the public at large and to the detriment of our heirs and successors. We intend
+  this dedication to be an overt act of relinquishment in perpetuity of all present and future 
+  rights to this software under copyright law.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR 
+  THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+
+  For more information, please refer to For more information, please refer to <http://unlicense.org/>
+ 
 
   vittorio.boccone@dectris.com
+  Dectris Ltd., Taefernweg 1, 5405 Baden-Daettwil, Switzerland.
  
   Dummy C external reader function
 */
@@ -13,19 +31,19 @@
 #include <stdio.h>
 #include <string.h>
 
-char *hdf5_master_file_name="";
+char *image_data_master_file_name="";
 
 
-void hdf5_open(char *hdf5_filename, int *error_flag){
+void image_data_open(char *image_data_filename, int *error_flag){
   /*    Arguments:
-	'hdf5_filename' (*char) input   Name of the HDF5 master file
+	'image_data_filename' (*char) input   Name of the HDF5 master file
 	'error_flag' (*int)     output  Provides error state condition
                                          0 Success
                                         -4 Error opening HDF5 master file
   */
   
-  printf(" [C] - hdf5_open '%s'\n", hdf5_filename );
-  hdf5_master_file_name = hdf5_filename;
+  printf(" [C] - image_data_open '%s'\n", image_data_filename );
+  image_data_master_file_name = image_data_filename;
 
   *error_flag = 0;
   // *error_flag = -4; // Masterfile cannot be opened
@@ -33,13 +51,13 @@ void hdf5_open(char *hdf5_filename, int *error_flag){
 }
 
 
-void hdf5_close(int *error_flag){
+void image_data_close(int *error_flag){
   /*    Arguments:
 	'error_flag' (*int)     output  Provides error state condition
                                          0 Success
                                         -4 Error closing HDF5 master file
   */ 
-  printf(" [C] - hdf5_close %s\n", hdf5_master_file_name);
+  printf(" [C] - image_data_close %s\n", image_data_master_file_name);
 
   *error_flag = 0;
   // *error_flag = -4; // Masterfile cannot be closed

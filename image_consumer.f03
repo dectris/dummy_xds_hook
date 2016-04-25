@@ -1,13 +1,29 @@
 !
-! Copyright (C) 2016
-! Dectris Ltd., Taefernweg 1, 5405 Baden-Daettwil, Switzerland.
-! All rights reserved.
+! This is free and unencumbered software released into the public domain.
+!
+! Anyone is free to copy, modify, publish, use, compile, sell, or distribute this software, 
+! either in source code form or as a compiled binary, for any purpose, commercial or non-commercial,
+! and by any means.
+!
+! In jurisdictions that recognize copyright laws, the author or authors of this software dedicate 
+! any and all copyright interest in the software to the public domain. We make this dedication for
+! the benefit of the public at large and to the detriment of our heirs and successors. We intend
+! this dedication to be an overt act of relinquishment in perpetuity of all present and future 
+! rights to this software under copyright law.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+! NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+! IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+! ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR 
+! THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+!
+! For more information, please refer to For more information, please refer to <http://unlicense.org/>
+!
 !
 ! vittorio.boccone@dectris.com
+! Dectris Ltd., Taefernweg 1, 5405 Baden-Daettwil, Switzerland.
+!
 ! (proof_of_concept)
-
-
-
 !
 ! Interoperability with C in Fortran 2003
 !
@@ -60,7 +76,7 @@ module dlfcn
    public :: dlopen, dlsym, dlclose, dlerror ! dl api
    
    ! valid modes for mode in dlopen:
-   integer, parameter, public :: rtld_lazy=1, rtld_now=2, rtld_global=256, rtld_local=0
+   integer(c_int), parameter, public :: rtld_lazy=1, rtld_now=2, rtld_global=256, rtld_local=0
       ! obtained from the output of the previously listed c program 
          
    interface ! all we need is interfaces for the prototypes in <dlfcn.h>
@@ -110,7 +126,7 @@ module generic
   implicit none
 
   character(kind=c_char,len=1024) :: dll_filename
-  character(kind=c_char,len=1024) :: hdf5_filename
+  character(kind=c_char,len=1024) :: image_data_filename
   integer(c_int)                  :: status
   type(c_ptr)                     :: handle=c_null_ptr
 
@@ -123,47 +139,46 @@ module generic
   ! get_header -> dll_get_header 
   abstract interface
 
-     subroutine hdf5_open(hdf5_filename, error_flag) bind(C)
+     subroutine image_data_open(image_data_filename, error_flag) bind(C)
        use iso_c_binding
-       integer                  :: error_flag
-       character(kind=c_char)   :: hdf5_filename(*)
+       integer(c_int)           :: error_flag
+       character(kind=c_char)   :: image_data_filename(*)
 
 
-     end subroutine hdf5_open
+     end subroutine image_data_open
 
-     subroutine hdf5_close(error_flag) bind(C)
+     subroutine image_data_close(error_flag) bind(C)
        use iso_c_binding
-       integer                  :: error_flag
+       integer (c_int)          :: error_flag
 
-     end subroutine hdf5_close
+     end subroutine image_data_close
 
      subroutine get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
        use iso_c_binding
-       integer                  :: nx, ny, nbyte, number_of_frames
-       real(kind=4)             :: qx, qy
-       integer                  :: error_flag
-       integer, dimension(1024) :: info_array
+       integer(c_int)                  :: nx, ny, nbyte, number_of_frames
+       real(c_float)                   :: qx, qy
+       integer(c_int)                  :: error_flag
+       integer(c_int), dimension(1024) :: info_array
      end subroutine get_header
 
      subroutine get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
        use iso_c_binding
-       integer                                      :: nx, ny, frame_number
-       integer                                      :: error_flag
-       integer(kind=4), dimension(nx:ny)            :: data_array
+       integer(c_int)                   :: nx, ny, frame_number
+       integer(c_int)                   :: error_flag
+       integer(c_int), dimension(nx:ny) :: data_array
        ! In case C should allocate the image array
        ! integer(c_int), pointer :: data_array(:)
      end subroutine get_data
   end interface
 
   ! dynamically-linked procedures
-  procedure(hdf5_open),        pointer :: dll_hdf5_open
-  procedure(hdf5_close),       pointer :: dll_hdf5_close
+  procedure(image_data_open),  pointer :: dll_image_data_open
+  procedure(image_data_close), pointer :: dll_image_data_close
   procedure(get_header),       pointer :: dll_get_header 
   procedure(get_data),         pointer :: dll_get_data   
    
 
 
-  common /generic_vars/ dll_filename, hdf5_filename, status
 
 contains
 
@@ -175,7 +190,7 @@ contains
     !                                   output value that is awarded by the Library)
     !                                   (!) Not implemented
     !      'DETECTOR'            input  (I would without the  .so, because it is an implementation detail)
-    !      'NAME_TEMPLATE'       input  (the Resource in HDF5 masterFile)
+    !      'TEMPLATE_NAME'       input  (the resource in image data masterfile)
     !      'ERROR_FLAG'          output Return values
     !                                         0 Success
     !                                        -1 Handle already exists
@@ -189,12 +204,12 @@ contains
     implicit none    
 
     character(len=:), allocatable      :: detector, template_name
-    integer                            :: error_flag
+    integer(c_int)                     :: error_flag
     type(c_funptr)                     :: fun_get_header_ptr = c_null_funptr
     type(c_funptr)                     :: fun_get_data_ptr   = c_null_funptr
-    type(c_funptr)                     :: fun_hdf5_open_ptr  = c_null_funptr
-    type(c_funptr)                     :: fun_hdf5_close_ptr = c_null_funptr
-    integer                            :: external_error_flag
+    type(c_funptr)                     :: fun_image_data_open_ptr  = c_null_funptr
+    type(c_funptr)                     :: fun_image_data_close_ptr = c_null_funptr
+    integer(c_int)                     :: external_error_flag
 
 
     error_flag=0
@@ -216,9 +231,9 @@ contains
     error_flag = 0 
     write (*,*)  "      + dll_filename    = <", trim(dll_filename)//C_NULL_CHAR, ">"
  
-    hdf5_filename=trim(template_name)//C_NULL_CHAR
+    image_data_filename=trim(template_name)//C_NULL_CHAR
     error_flag = 0 
-    write (*,*)  "      + hdf5_filename   = <", trim(hdf5_filename)//C_NULL_CHAR, ">"
+    write (*,*)  "      + image_data_filename   = <", trim(image_data_filename)//C_NULL_CHAR, ">"
 
     !
     ! Open the DL:
@@ -253,20 +268,20 @@ contains
        call c_f_procpointer(cptr=fun_get_header_ptr, fptr=dll_get_header)
     endif
     !
-    fun_hdf5_open_ptr   = DLSym(handle,"hdf5_open")
-    if(.not.c_associated(fun_hdf5_open_ptr))  then
+    fun_image_data_open_ptr   = DLSym(handle,"image_data_open")
+    if(.not.c_associated(fun_image_data_open_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
        error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_hdf5_open_ptr,   fptr=dll_hdf5_open)
+       call c_f_procpointer(cptr=fun_image_data_open_ptr,   fptr=dll_image_data_open)
     endif
     !
-    fun_hdf5_close_ptr = DLSym(handle,"hdf5_close")
-    if(.not.c_associated(fun_hdf5_close_ptr))  then
+    fun_image_data_close_ptr = DLSym(handle,"image_data_close")
+    if(.not.c_associated(fun_image_data_close_ptr))  then
        write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
        error_flag = -3
     else
-       call c_f_procpointer(cptr=fun_hdf5_close_ptr, fptr=dll_hdf5_close)
+       call c_f_procpointer(cptr=fun_image_data_close_ptr, fptr=dll_image_data_close)
     endif
 
 
@@ -274,7 +289,7 @@ contains
        return
     endif
        
-    call dll_hdf5_open(hdf5_filename, external_error_flag)
+    call dll_image_data_open(image_data_filename, external_error_flag)
     error_flag = external_error_flag
 
     return     
@@ -305,11 +320,11 @@ contains
     use dlfcn
     implicit none    
     
-    integer                            :: nx, ny, nbyte, number_of_frames
-    real(kind=4)                       :: qx, qy
-    integer                            :: error_flag
-    integer                            :: external_error_flag
-    integer, dimension(1024)           :: info_array
+    integer(c_int)                   :: nx, ny, nbyte, number_of_frames
+    real(c_float)                    :: qx, qy
+    integer(c_int)                   :: error_flag
+    integer(c_int)                   :: external_error_flag
+    integer(c_int), dimension(1024)  :: info_array
     error_flag=0
 
     write (*,*) "[F] - generic_header"
@@ -338,9 +353,9 @@ contains
     use dlfcn
     implicit none    
 
-    integer                                       :: nx, ny, frame_number
-    integer                                       :: error_flag
-    integer(kind=4), dimension (nx:ny)            :: data_array
+    integer(c_int)                    :: nx, ny, frame_number
+    integer(c_int)                    :: error_flag
+    integer(c_int), dimension (nx:ny) :: data_array
     ! In case C should allocate the image array
     ! integer(c_int), pointer :: data_array(:)
 
@@ -373,13 +388,13 @@ contains
     use dlfcn
     implicit none    
 
-    integer     :: error_flag
-    integer     :: external_error_flag
+    integer(c_int) :: error_flag
+    integer(c_int) :: external_error_flag
 
     write (*,*) "[F] - generic_close"
     write (*,*) "      + handle       = <", handle,">"
     
-    call dll_hdf5_close(external_error_flag)
+    call dll_image_data_close(external_error_flag)
     error_flag = external_error_flag
 
     ! now close the dl:
@@ -425,16 +440,16 @@ program image_consumer
   logical                                       :: external_source_flag=.FALSE.
   character(len=20)                             :: name
   character(len=:), allocatable                 :: detector, template_name
-  integer                                       :: error_flag
-  integer                                       :: nx=0, ny=0, nbyte=0, frame_number, number_of_frames
-  real(kind=4)                                  :: qx=0, qy=0
-  integer, dimension(1024)                      :: info_array
-  integer(kind=4), dimension (:,:), allocatable :: data_array
+  integer(c_int)                                :: error_flag
+  integer(c_int)                                :: nx=0, ny=0, nbyte=0, frame_number, number_of_frames
+  real(c_float)                                 :: qx=0, qy=0
+  integer(c_int), dimension(1024)               :: info_array
+  integer(c_int), dimension (:,:), allocatable  :: data_array
    
   
   write (*,*) "[F] - Loading shared-object"
   detector      = 'libDectrisSource'
-  template_name = 'path_to_hdf5_master_file/master_file.hdf5'
+  template_name = 'path_to_image_data_master_file/master_file.extension'
 
   call generic_open(detector, template_name, error_flag)
 
