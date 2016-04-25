@@ -19,11 +19,10 @@
 
   For more information, please refer to For more information, please refer to <http://unlicense.org/>
  
-
   vittorio.boccone@dectris.com
   Dectris Ltd., Taefernweg 1, 5405 Baden-Daettwil, Switzerland.
  
-  Dummy C external reader function
+  Dummy external data handling functions
 */
 
 #include <stdlib.h>
