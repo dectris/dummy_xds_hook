@@ -467,9 +467,6 @@ program image_consumer
      write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
      write (*,*) "      + error_flag       = <", error_flag,">"
 
-     ! In case C should allocate the image array
-     ! p = dll_create_storage(ny *nx)
-     ! call c_f_pointer(p, data_array, [ny *nx])   ! 4 is the array size.
      if (0/=error_flag) then
         stop
      else
@@ -484,8 +481,6 @@ program image_consumer
            data_array(5,3) =  10+frame_number
 
            call generic_get_data(frame_number, nx, ny, data_array, error_flag)
-           ! Eventually oune could call directlly 'dll_get_data()'
-           ! call dll_get_data(frame_number, nx, ny, data_array, error_flag)
 
            write (*,*) "[F] - generic_data"
            write (*,*) "      + frame_number  = <", frame_number, ">"
