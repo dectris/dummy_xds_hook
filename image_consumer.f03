@@ -43,7 +43,6 @@ contains
       character(kind=c_char), dimension(:), pointer :: fptr
       
       interface ! strlen is a standard C function from <string.h>
-         ! int strlen(char *string)
          function strlen(string) result(len) bind(C,name="strlen")
             use iso_c_binding
             type(c_ptr), value :: string ! a C pointer
@@ -166,8 +165,6 @@ module generic_data_plugin
        integer(c_int)                   :: nx, ny, frame_number
        integer(c_int)                   :: error_flag
        integer(c_int), dimension(nx:ny) :: data_array
-       ! In case C should allocate the image array
-       ! integer(c_int), pointer :: data_array(:)
      end subroutine plugin_get_data
   end interface
 
@@ -356,8 +353,6 @@ contains
     integer(c_int)                    :: nx, ny, frame_number
     integer(c_int)                    :: error_flag
     integer(c_int), dimension (nx:ny) :: data_array
-    ! In case C should allocate the image array
-    ! integer(c_int), pointer :: data_array(:)
 
     write (*,*) "[F] - generic_get_data"
     write (*,*) "      + handle       = <", handle,       ">"
