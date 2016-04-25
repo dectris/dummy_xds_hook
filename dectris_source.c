@@ -122,7 +122,7 @@ void plugin_get_header ( int *nx, int *ny, int *nbyte, float *qx, float *qy,
   *ny       = 5;
   int depth = 32;
 
-  *nbyte = depth * (*nx) * (*ny);
+  *nbyte = (depth/8);
   printf(" [C] - get_header\n");
   printf("       + nx,ny            = < %d, %d >\n", *nx, *ny);
   printf("       + nbyte            = < %d >\n", *nbyte);
