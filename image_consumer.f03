@@ -444,7 +444,7 @@ program image_consumer
   
   write (*,*) "[F] - Loading shared-object"
   detector      = 'libDectrisSource'
-  template_name = 'path_to_image_data_master_file/master_file.extension'
+  template_name = '/home/vitb/series_1_master.h5'
 
   call generic_open_file(detector, template_name, error_flag)
 
@@ -471,17 +471,18 @@ program image_consumer
         do frame_number = 1,number_of_frames
            write (*,*) "[F] - [FRAME n.",frame_number,"]"
 
-           data_array(1,1)  =   1+frame_number
-           data_array(3,2)  =   5+frame_number
-           data_array(5,3) =  10+frame_number
+           ! data_array(1,1)  =   1+frame_number
+           ! data_array(3,2)  =   5+frame_number
+           ! data_array(5,3) =  10+frame_number
 
            call generic_get_data(frame_number, nx, ny, data_array, error_flag)
 
            write (*,*) "[F] - generic_data"
-           write (*,*) "      + frame_number  = <", frame_number, ">"
-           write (*,*) "      + nx,ny         = <", nx, ", ", ny, ">"
-           write (*,*) "      + data_array    = <", data_array,   ">"
-           write (*,*) "      + error_flag    = <", error_flag,   ">"
+           write (*,*) "      + frame_number       = <", frame_number, ">"
+           write (*,*) "      + nx,ny              = <", nx, ", ", ny, ">"
+           write (*,*) "      + data_array(1,1)    = <", data_array(1,1),   ">"
+           write (*,*) "      + data_array(10,10)  = <", data_array(10,10),   ">"
+           write (*,*) "      + error_flag         = <", error_flag,   ">"
         end do
      endif
 
