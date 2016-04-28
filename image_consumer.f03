@@ -291,7 +291,7 @@ contains
        return
     endif
        
-    call dll_plugin_open_file(image_data_filename, external_error_flag)
+    call dll_plugin_open_file(instance_id, image_data_filename, external_error_flag)
     error_flag = external_error_flag
 
     return     
@@ -452,7 +452,7 @@ program image_consumer
    
   
   write (*,*) "[F] - Loading shared-object"
-  detector      = 'libdectrish5toxds.so'
+  detector      = 'libdectrish5toxds'
   template_name = '../lyso7_1_master.h5'
 
   call generic_open_file(instance_id, detector, template_name, error_flag)

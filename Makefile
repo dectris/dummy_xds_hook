@@ -47,7 +47,7 @@ dectris_source.o: dectris_source.c
 clean:
 	rm -rf $(binaries)
 	rm -rf *.o
-	rm -rf *.so
+#	rm -rf *.so
 	rm -rf *.mod
 # End of the makefile
 
