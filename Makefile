@@ -22,7 +22,7 @@ else
 	FLDFLAGS_SHARED = -g -shared
 	FLDOPTS         = -ldl
 endif
-all: image_consumer libDectrisSource.so
+all: image_consumer 
 
 image_consumer:  image_consumer.o 
 	$(FC) $(FLDFLAGS) -o $@ image_consumer.o  $(FLDOPTS)
