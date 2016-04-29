@@ -187,18 +187,16 @@ contains
   ! Open the shared-object 
   subroutine generic_open_file(instance_id, detector, template_name, error_flag)
     ! Requirements:
-    !  (!) 'ID' (integer 0..255) input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
-    !                                   output value that is awarded by the Library)
-    !                                   (!) Not implemented
-    !      'DETECTOR'            input  (I would without the  .so, because it is an implementation detail)
-    !      'TEMPLATE_NAME'       input  (the resource in image data masterfile)
-    !      'ERROR_FLAG'          output Return values
-    !                                         0 Success
-    !                                        -1 Handle already exists
-    !                                        -2 Library not loaded
-    !                                        -3 Function not found in library
-    !                                   (!)  -4 Master file cannot be opened (coning form C function)
-    !
+    !  'INSTANCE_ID' (integer 0..511) output  Unique identifier output value that is awarded by the Library)
+    !  'DETECTOR'                      input  (I would without the  .so, because it is an implementation detail)
+    !  'TEMPLATE_NAME'                 input  (the resource in image data masterfile)
+    !  'ERROR_FLAG'                   output  Return values
+    !                                             0 Success
+    !                                            -1 Handle already exists
+    !                                            -2 Cannor open library
+    !                                            -3 Function not found in library
+    !                                            -4 Master file cannot be opened (coming form C function)
+
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
@@ -301,21 +299,25 @@ contains
   ! Get the header
   subroutine generic_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
     ! Requirements:
-    !  (!) 'ID' (integer 0..255)  input   Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
-    !                                     output value that is awarded by the Library)
-    !                                     (!) -> Not implemented
-    !      'NX' (integer)         output  Number of pixels along X 
-    !      'NY' (integer)         output  Number of pixels along Y
-    !      'NBYTE' (integer)      output  Number of bytes in the image... X*Y*DEPTH
-    !      'QX' (4*REAL)          output  pixel size
-    !      'QY' (4*REAL)          output  pixel size
-    !      'INFO' (integer array) output  Array of (1024) integers:
-    !                                      INFO(1) = Dectris
-    !                                      INFO(2) = Version number of the library
-    !  (!) 'ERROR_FLAG' (integer) output  Provides error state condition
-    !                                      0 Success
-    !                                     -1 Library not loaded
-    !                                     -2 Cannot read header (will come from C function)
+    !  'INSTANCE_ID' (integer 0..511)  input  Unique identifier similar to a UNIT
+    !  'NX' (integer)                 output  Number of pixels along X 
+    !  'NY' (integer)                 output  Number of pixels along Y
+    !  'NBYTE' (integer)              output  Number of bytes in the image... X*Y*DEPTH
+    !  'QX' (4*REAL)                  output  Pixel size
+    !  'QY' (4*REAL)                  output  Pixel size
+    !  'NUMBER_OF_FRAMES' (integer)   output  Number of frames for the full datase. So far unused
+    !  'INFO' (integer array)         output  Array of (1024) integers:
+    !                                          INFO(1)  = Vendor ID (1:Dectris)
+    !                                          INFO(2)  = Major Version number of the library
+    !                                          INFO(3)  = Minor Version number of the library
+    !                                          INFO(4)  = Parch Version number of the library
+    !                                          INFO(5)  = Linux timestamp of library creation
+    !                                          INFO(>5) = Not yet used 
+    !  'ERROR_FLAG' (integer)         output  Provides error state condition
+    !                                           0 Success
+    !                                          -1 Cannot open library
+    !                                          -2 Cannot read header (will come from C function)
+    !                                          -4 Cannot read dataset informations (will come from C function)
     !
     use iso_c_binding
     use iso_c_utilities
@@ -351,6 +353,19 @@ contains
   ! 
   ! Dynamically map function and execute it 
   subroutine generic_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
+    ! Requirements:
+    !  'INSTANCE_ID' (integer 0..511)  input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
+    !                                         output value that is awarded by the Library)
+    !  'FRAME_NUMBER' (integer)        input  Number of frames for the full datase. So far unused
+    !  'NX' (integer)                  input  Number of pixels along X 
+    !  'NY' (integer)                  input  Number of pixels along Y
+    !  'DATA_ARRAY' (integer array)   output  1D array containing pixel data with lenght = NX*NY
+    !  'ERROR_FLAG' (integer)         output  Provides error state condition
+    !                                           0 Success
+    !                                          -1 Cannot open library 
+    !                                          -2 Cannot open frame (will come from C function)
+    !                                          -3 Datatype not supported (will come from C function)
+    !                                          -4 Cannot read dataset informations (will come from C function)
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
@@ -361,6 +376,13 @@ contains
     integer(c_int)                    :: error_flag
     integer(c_int), dimension (nx:ny) :: data_array
 
+    ! Check if can use handle
+    if(.not.c_associated(handle)) then
+       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       error_flag = -1
+       return
+    end if
+    
     write (*,*) "[F] - generic_get_data"
     write (*,*) "      + handle       = <", handle,       ">"
     write (*,*) "      + frame_number = <", frame_number, ">"
@@ -369,7 +391,6 @@ contains
  
     ! invoke the dynamically-linked subroutine:
     call dll_plugin_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
-    write (*,*) "[F] - data array:"
     
   end subroutine generic_get_data
 
@@ -377,14 +398,13 @@ contains
   ! 
   subroutine generic_close_file(instance_id, error_flag)
     ! Requirements:
-    !  (!) 'ID' (integer 0..255) input. Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
-    !                            output value that is awarded by the Library)
-    !                            (!) -> Not implemented
-    !      'ERROR_FLAG' integer  output Return values:
-    !                                     0 Success
-    !                                    -1 Error closing Materfile
-    !                                    -2 Error closing Shared-object
-
+    !  'INSTANCE_ID' (integer 0..511)  input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
+    !                                         output value that is awarded by the Library)
+    !  'ERROR_FLAG' (integer)         output  Return values:
+    !                                           0 Success
+    !                                          -1 Error closing Materfile
+    !                                          -2 Error closing Shared-object
+ 
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
@@ -394,6 +414,13 @@ contains
     integer(c_int) :: error_flag
     integer(c_int) :: external_error_flag
 
+    ! Check if can use handle
+    if(.not.c_associated(handle)) then
+       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       error_flag = -1
+       return
+    end if
+ 
     write (*,*) "[F] - generic_close_file"
     write (*,*) "      + handle       = <", handle,">"
     
@@ -404,7 +431,7 @@ contains
     status=dlclose(handle)
     if(status/=0) then
        write(*,*) "[X] - error in dlclose: ", c_f_string(dlerror())
-       error_flag = -1
+       error_flag = -2
     else
        error_flag = 0
     end if
