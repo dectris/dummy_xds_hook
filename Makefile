@@ -30,18 +30,18 @@ image_consumer:  image_consumer.o
 image_consumer.o: image_consumer.f03 
 	$(FC) $(FFLAGS) $^ -o $@
 
-# Fortran shared-object
-#libDectrisImageRead.so: dectris_image_read.o
+# Fortran shared-object 
+# libDectrisImageRead.so: dectris_image_read.o
 #	$(FC) $(FLDFLAGS_SHARED) -o $@ $^ $(FLDOPTS)
-#dectris_image_read.o: dectris_image_read.f03
+# dectris_image_read.o: dectris_image_read.f03
 #	$(FC) $(FFLAGS) $^ -o $@
 
 # C shared-object
-libDectrisSource.so: dectris_source.o
-	$(CC) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+# libDectrisSource.so: dectris_source.o
+#	$(CC) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
-dectris_source.o: dectris_source.c
-	$(CC) $(CFLAGS) $^ -o $@
+# dectris_source.o: dectris_source.c
+#	$(CC) $(CFLAGS) $^ -o $@
 
 # Cleaning everything
 clean:
