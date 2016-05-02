@@ -183,77 +183,79 @@ module generic_data_plugin
 contains
 
   subroutine generic_getfrm(TEST,XFRM,ACTNAM,NXNY,IFRAME,NX0,NY0,QX0,QY0,IER)
-  INTENT(IN)       :: TEST,XFRM,ACTNAM,NXNY   ! test,xfrm are ignored
-  INTENT(OUT)      :: IFRAME,NX0,NY0,QX0,QY0,IER
-  CHARACTER(len=*) :: ACTNAM
-  INTEGER             TEST,XFRM,IER,INSTANCE_ID   
-  INTEGER(4)          NX0,NY0,NXNY,IFRAME(NXNY)
-  REAL(4)             QX0,QY0
-  INTEGER          :: nbyte,info_array(1024),number_of_frames,len,numfrm
-  REAL             :: qx,qy
-  CHARACTER(len=:), ALLOCATABLE :: master_file
-  
-!PRINT*,'generic_getfrm:',detector
-  ier=-3  ! wrong data format
-  IF (.NOT.ALLOCATED(detector)) RETURN
-  IF (detector(1:3)/='lib') RETURN
-  len=LEN_TRIM(actnam)             ! test_123456.h5 is a possible actnam
-!  print*,actnam(len-8:len-3)
-  READ(actnam(len-8:len-3),*) numfrm  ! this assumes that actnam ends with .h5
-!PRINT*,'actnam=',TRIM(actnam),numfrm,len
-  IF (NXNY==0) THEN
-    master_file=actnam(:len-9)//'master.h5'
-    PRINT*,'master_file=',TRIM(master_file)
-    CALL generic_open_file(instance_id, detector, master_file, ier)
-    IF (ier/=0) THEN
-      WRITE(*,*) 'could not open ',detector//'.so',' ier=',ier
-      WRITE(*,*) 'check LD_LIBRARY_PATH !'
-      ier=-3
-      RETURN
+    INTENT(IN)       :: TEST,XFRM,ACTNAM,NXNY   ! test,xfrm are ignored
+    INTENT(OUT)      :: IFRAME,NX0,NY0,QX0,QY0,IER
+    CHARACTER(len=*) :: ACTNAM
+    INTEGER             TEST,XFRM,IER,INSTANCE_ID   
+    INTEGER(4)          NX0,NY0,NXNY,IFRAME(NXNY)
+    REAL(4)             QX0,QY0
+    INTEGER          :: nbyte,info_array(1024),number_of_frames,len,numfrm
+    REAL             :: qx,qy
+    CHARACTER(len=:), ALLOCATABLE :: master_file
+    
+    !PRINT*,'generic_getfrm:',detector
+    ier=-3  ! wrong data format
+    IF (.NOT.ALLOCATED(detector)) RETURN
+    IF (detector(1:3)/='lib') RETURN
+    len=LEN_TRIM(actnam)             ! test_123456.h5 is a possible actnam
+    !  print*,actnam(len-8:len-3)
+    READ(actnam(len-8:len-3),*) numfrm  ! this assumes that actnam ends with .h5
+    !PRINT*,'actnam=',TRIM(actnam),numfrm,len
+    IF (NXNY==0) THEN
+       master_file=actnam(:len-9)//'master.h5'
+       PRINT*,'master_file=',TRIM(master_file)
+       CALL generic_open_file(instance_id, detector, master_file, ier)
+       IF (ier/=0) THEN
+          WRITE(*,*) 'could not open ',detector//'.so',' ier=',ier
+          WRITE(*,*) 'check LD_LIBRARY_PATH !'
+          ier=-3
+          RETURN
+       END IF
+       CALL generic_get_header(instance_id,nx,ny,nbyte,qx,qy,number_of_frames,info_array,ier)
+       PRINT*,'nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)=', &
+            nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)
+       IF (ier/=0) THEN
+          WRITE(*,*) 'could not get header from ',TRIM(master_file),' ier=',ier
+          ier=-3
+          RETURN 
+       END IF
+       WRITE(*,'(a,4i4,i12)')'INFO(1:5)=vendor/major version/minor version/patch/timestamp=', &
+            info_array(1:5)
+       IF (info_array(1)/=1) THEN
+          WRITE(*,*) 'expected info_array(1)=1 but got',info_array(1) ! 1=Dectris
+          ier=-3
+          RETURN
+       END IF
+       IF (info_array(2)/=0) THEN  
+          WRITE(*,*) 'expected info_array(2)=0 but got',info_array(2) ! Version 0
+          ier=-3
+          RETURN
+       END IF
+       nx0=nx
+       ny0=ny
+       qx0=qx
+       qy0=qy
+       IF (info_array(1)==1) THEN ! Dectris reports pixel size in m, not mm
+          qx0=qx0*1000
+          qy0=qy0*1000
+       END IF
+       ! at this point, ier has a meaningful value
+    ELSE IF (nxny<nx*ny) THEN
+       WRITE(*,*) 'not enough space in iframe array'
+       ier=-3
+    ELSE
+       CALL generic_get_data(instance_id, numfrm, nx, ny, iframe, ier)
+       IF (ier<0) THEN
+          WRITE(*,*)'error from generic_get_data, numfrm, ier=',numfrm,ier
+          STOP
+          ier=-1
+       END IF
     END IF
-    CALL generic_get_header(instance_id,nx,ny,nbyte,qx,qy,number_of_frames,info_array,ier)
-PRINT*,'nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)=', &
-              nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)
-    IF (ier/=0) THEN
-      WRITE(*,*) 'could not get header from ',TRIM(master_file),' ier=',ier
-      ier=-3
-      RETURN 
-    END IF
-    WRITE(*,'(a,4i4,i12)')'INFO(1:5)=vendor/major version/minor version/patch/timestamp=', &
-              info_array(1:5)
-    IF (info_array(1)/=1) THEN
-      WRITE(*,*) 'expected info_array(1)=1 but got',info_array(1) ! 1=Dectris
-      ier=-3
-      RETURN
-    END IF
-    IF (info_array(2)/=0) THEN  
-      WRITE(*,*) 'expected info_array(2)=0 but got',info_array(2) ! Version 0
-      ier=-3
-      RETURN
-    END IF
-    nx0=nx
-    ny0=ny
-    qx0=qx
-    qy0=qy
-    IF (info_array(1)==1) THEN ! Dectris reports pixel size in m, not mm
-      qx0=qx0*1000
-      qy0=qy0*1000
-    END IF
-! at this point, ier has a meaningful value
-  ELSE IF (nxny<nx*ny) THEN
-    WRITE(*,*) 'not enough space in iframe array'
-    ier=-3
-  ELSE
-    CALL generic_get_data(instance_id, numfrm, nx, ny, iframe, ier)
-    IF (ier<0) THEN
-      WRITE(*,*)'error from generic_get_data, numfrm, ier=',numfrm,ier
-      STOP
-      ier=-1
-    END IF
-  END IF
-! at this point, ier should have a meaningul value
-PRINT*,'return from generic_getfrm, ier=',ier
+    ! at this point, ier should have a meaningul value
+    PRINT*,'return from generic_getfrm, ier=',ier
   END subroutine generic_getfrm
+
+
   ! 
   ! Open the shared-object 
   subroutine generic_open_file(instance_id, detector, template_name, error_flag)
@@ -445,7 +447,7 @@ PRINT*,'return from generic_getfrm, ier=',ier
     integer(c_int)                    :: instance_id
     integer(c_int)                    :: nx, ny, frame_number
     integer(c_int)                    :: error_flag
-    integer(c_int), dimension (nx:ny) :: data_array
+    integer(c_int), dimension (nx*ny) :: data_array
 
     ! Check if can use handle
     if(.not.c_associated(handle)) then
@@ -515,71 +517,75 @@ end module generic_data_plugin
 !
 ! Dummy shared object consumer
 !
-!program image_consumer
-! use iso_c_binding
-! use generic_data_plugin
+program image_consumer
+  use iso_c_binding
+  use generic_data_plugin
+  
+  implicit none
 
-! implicit none
+  integer(c_int)                                :: instance_id
+  integer                                       :: number_of_arguments, cptArg
+  logical                                       :: external_source_flag=.FALSE.
+  character(len=:), allocatable                 :: template_name
+  integer                                       :: i
+  ! character(len=20)                             :: name
+  ! character(len=:), allocatable                 :: detector,
+  integer(c_int)                                :: error_flag, number_of_frames, nbyte=0, frame_number
+  ! integer(c_int)                                :: nx=0, ny=0, frame_number
+  real(c_float)                                 :: qx=0, qy=0
+  integer(c_int), dimension(1024)               :: info_array
+  integer(c_int), dimension (:,:), allocatable  :: data_array
 
-! integer(c_int)                                :: instance_id
-! integer                                       :: number_of_arguments, cptArg
-! logical                                       :: external_source_flag=.FALSE.
-! character(len=20)                             :: name
-! character(len=:), allocatable                 :: detector, template_name
-! integer(c_int)                                :: error_flag
-! integer(c_int)                                :: nx=0, ny=0, nbyte=0, frame_number, number_of_frames
-! real(c_float)                                 :: qx=0, qy=0
-! integer(c_int), dimension(1024)               :: info_array
-! integer(c_int), dimension (:,:), allocatable  :: data_array
-!  
-! 
-! write (*,*) "[F] - Loading shared-object"
-! detector      = 'libdectrish5toxds'
-! template_name = '../lyso7_1_master.h5'
+  
+  write (*,*) "[F] - Loading shared-object"
+  detector      = 'libdectrish5toxds'
+  template_name = '/home/vitb/jira_EDULA-15/lyso7_1_master.h5'
 
-! call generic_open_file(instance_id, detector, template_name, error_flag)
+  call generic_open_file(instance_id, detector, template_name, error_flag)
 
-! if (0/=error_flag) then
-!    stop
-! else
+  if (0/=error_flag) then
+     stop
+  else
 
-!    call generic_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
-!    write (*,*) "[F] - generic_header"
-!    write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
-!    write (*,*) "      + nbyte            = <", nbyte,">"
-!    write (*,*) "      + qx,qy            = <", qx, ", ", qy,">"
-!    write (*,*) "      + number_of_frames = <",number_of_frames ,">"
-!    write (*,*) "      + info_array(1)    = <", info_array(1) ,">"
-!    write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
-!    write (*,*) "      + error_flag       = <", error_flag,">"
+     call generic_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
+     write (*,*) "[F] - generic_header"
+     write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
+     write (*,*) "      + nbyte            = <", nbyte,">"
+     write (*,*) "      + qx,qy            = <", qx, ", ", qy,">"
+     write (*,*) "      + number_of_frames = <",number_of_frames ,">"
+     write (*,*) "      + info_array(1)    = <", info_array(1) ,">"
+     write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
+     write (*,*) "      + error_flag       = <", error_flag,">"
+     
+     if (0/=error_flag) then
+        stop
+     else
 
-!    if (0/=error_flag) then
-!       stop
-!    else
-
-!       ! One must place the total number of frames somewhere in the info array
-!       allocate (data_array(ny,nx))
-!       do frame_number = 1,number_of_frames
+        ! One must place the total number of frames somewhere in the info array
+        allocate (data_array(nx,ny))
+        frame_number=1
+!        do frame_number = 1,number_of_frames
 !          write (*,*) "[F] - [FRAME n.",frame_number,"]"
 
 !          ! data_array(1,1)  =   1+frame_number
 !          ! data_array(3,2)  =   5+frame_number
 !          ! data_array(5,3) =  10+frame_number
 
-!          call generic_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
+        call generic_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
 
-!          write (*,*) "[F] - generic_data"
-!          write (*,*) "      + frame_number       = <", frame_number, ">"
-!          write (*,*) "      + nx,ny              = <", nx, ", ", ny, ">"
-!          write (*,*) "      + data_array(1,1)    = <", data_array(1,1),   ">"
-!          write (*,*) "      + data_array(10,10)  = <", data_array(10,10),   ">"
-!          write (*,*) "      + error_flag         = <", error_flag,   ">"
+        write (*,*) "[F] - generic_data"
+        write (*,*) "      + frame_number       = <", frame_number, ">"
+        write (*,*) "      + nx,ny              = <", nx, ", ", ny, ">"
+        do i=1, 1065, 1
+           write (*,*) data_array(1,i), data_array(2,i), data_array(3,i), data_array(4,i)
+        end do
+        write (*,*) "      + error_flag         = <", error_flag,   ">"
 !       end do
-!    endif
+     endif
 
-!    call generic_close_file(instance_id, error_flag)
-! endif
+     call generic_close_file(instance_id, error_flag)
+  endif
 
-! stop
-! 
-!end program image_consumer
+  stop
+  
+end program image_consumer
