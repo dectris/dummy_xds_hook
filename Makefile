@@ -30,6 +30,12 @@ image_consumer:  image_consumer.o
 image_consumer.o: image_consumer.f03 
 	$(FC) $(FFLAGS) $^ -o $@
 
+generic_data_plugin:  generic_data_plugin.o 
+	$(FC) $(FLDFLAGS) -o $@ generic_data_plugin.o  $(FLDOPTS)
+
+generic_data_plugin.o: generic_data_plugin.f90
+	$(FC) $(FFLAGS) $^ -o $@
+
 # Fortran shared-object 
 # libDectrisImageRead.so: dectris_image_read.o
 #	$(FC) $(FLDFLAGS_SHARED) -o $@ $^ $(FLDOPTS)
