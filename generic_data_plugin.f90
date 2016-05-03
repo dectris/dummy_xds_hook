@@ -137,34 +137,30 @@ module generic_data_plugin
   ! get_header -> dll_get_header 
   abstract interface
 
-     subroutine plugin_open_file(instance_id, filename, error_flag) bind(C)
+     subroutine plugin_open_file(filename, error_flag) bind(C)
        use iso_c_binding
-       integer(c_int)           :: instance_id
        integer(c_int)           :: error_flag
        character(kind=c_char)   :: filename(*)
 
 
      end subroutine plugin_open_file
 
-     subroutine plugin_close_file(instance_id, error_flag) bind(C)
+     subroutine plugin_close_file(error_flag) bind(C)
        use iso_c_binding
        integer (c_int)          :: error_flag
-       integer(c_int)           :: instance_id
 
      end subroutine plugin_close_file
 
-     subroutine plugin_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
+     subroutine plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
        use iso_c_binding
-       integer(c_int)                  :: instance_id
        integer(c_int)                  :: nx, ny, nbyte, number_of_frames
        real(c_float)                   :: qx, qy
        integer(c_int)                  :: error_flag
        integer(c_int), dimension(1024) :: info_array
      end subroutine plugin_get_header
 
-     subroutine plugin_get_data(instance_id, frame_number, nx, ny, data_array, error_flag) bind(C)
+     subroutine plugin_get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
        use iso_c_binding
-       integer(c_int)                   :: instance_id
        integer(c_int)                   :: nx, ny, frame_number
        integer(c_int)                   :: error_flag
        integer(c_int), dimension(nx:ny) :: data_array
@@ -186,7 +182,7 @@ contains
     INTENT(IN)       :: TEST,XFRM,ACTNAM,NXNY   ! test,xfrm are ignored
     INTENT(OUT)      :: IFRAME,NX0,NY0,QX0,QY0,IER
     CHARACTER(len=*) :: ACTNAM
-    INTEGER             TEST,XFRM,IER,INSTANCE_ID   
+    INTEGER             TEST,XFRM,IER
     INTEGER(4)          NX0,NY0,NXNY,IFRAME(NXNY)
     REAL(4)             QX0,QY0
     INTEGER          :: nbyte,info_array(1024),number_of_frames,len,numfrm
@@ -204,14 +200,14 @@ contains
     IF (NXNY==0) THEN
        master_file=actnam(:len-9)//'master.h5'
        PRINT*,'master_file=',TRIM(master_file)
-       CALL generic_open_file(instance_id, detector, master_file, ier)
+       CALL generic_open_file(detector, master_file, ier)
        IF (ier/=0) THEN
           WRITE(*,*) 'could not open ',detector//'.so',' ier=',ier
           WRITE(*,*) 'check LD_LIBRARY_PATH !'
           ier=-3
           RETURN
        END IF
-       CALL generic_get_header(instance_id,nx,ny,nbyte,qx,qy,number_of_frames,info_array,ier)
+       CALL generic_get_header(nx,ny,nbyte,qx,qy,number_of_frames,info_array,ier)
        PRINT*,'nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)=', &
             nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)
        IF (ier/=0) THEN
@@ -244,7 +240,7 @@ contains
        WRITE(*,*) 'not enough space in iframe array'
        ier=-3
     ELSE
-       CALL generic_get_data(instance_id, numfrm, nx, ny, iframe, ier)
+       CALL generic_get_data(numfrm, nx, ny, iframe, ier)
        IF (ier<0) THEN
           WRITE(*,*)'error from generic_get_data, numfrm, ier=',numfrm,ier
           STOP
@@ -258,9 +254,8 @@ contains
 
   ! 
   ! Open the shared-object 
-  subroutine generic_open_file(instance_id, detector, template_name, error_flag)
+  subroutine generic_open_file(detector, template_name, error_flag)
     ! Requirements:
-    ! 'INSTANCE ID' (integer 0..511) output  Unique identifier output value that is awarded by the Library)
     !      'DETECTOR'                 input  (I would without the  .so, because it is an implementation detail)
     !      'TEMPLATE_NAME'            input  (the resource in image data masterfile)
     !      'ERROR_FLAG'              output Return values
@@ -277,7 +272,6 @@ contains
 
     character(len=:), allocatable      :: detector, template_name
     integer(c_int)                     :: error_flag
-    integer(c_int)                     :: instance_id
     type(c_funptr)                     :: fun_plugin_open_file_ptr   = c_null_funptr
     type(c_funptr)                     :: fun_plugin_close_file_ptr  = c_null_funptr
     type(c_funptr)                     :: fun_plugin_get_header_ptr  = c_null_funptr
@@ -362,7 +356,7 @@ contains
        return
     endif
        
-    call dll_plugin_open_file(instance_id, image_data_filename, external_error_flag)
+    call dll_plugin_open_file(image_data_filename, external_error_flag)
     error_flag = external_error_flag
 
     return     
@@ -370,9 +364,8 @@ contains
 
   !
   ! Get the header
-  subroutine generic_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
+  subroutine generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
     ! Requirements:
-    !  'INSTANCE_ID' (integer 0..511)   input  Unique identifier similar to a UNIT
     !  'NX' (integer)                  output  Number of pixels along X 
     !  'NY' (integer)                  output  Number of pixels along Y
     !  'NBYTE' (integer)               output  Number of bytes in the image... X*Y*DEPTH
@@ -397,7 +390,6 @@ contains
     use dlfcn
     implicit none    
     
-    integer(c_int)                   :: instance_id
     integer(c_int)                   :: nx, ny, nbyte, number_of_frames
     real(c_float)                    :: qx, qy
     integer(c_int)                   :: error_flag
@@ -416,7 +408,7 @@ contains
     end if
  
     ! finally, invoke the dynamically-linked subroutine:
-    call dll_plugin_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
+    call dll_plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
 
     error_flag = external_error_flag
     return 
@@ -425,10 +417,8 @@ contains
 
   ! 
   ! Dynamically map function and execute it 
-  subroutine generic_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
+  subroutine generic_get_data(frame_number, nx, ny, data_array, error_flag)
     ! Requirements:
-    !  'INSTANCE_ID' (integer 0..511)  input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
-    !                                         output value that is awarded by the Library)
     !  'FRAME_NUMBER' (integer)        input  Number of frames for the full datase. So far unused
     !  'NX' (integer)                  input  Number of pixels along X 
     !  'NY' (integer)                  input  Number of pixels along Y
@@ -444,7 +434,6 @@ contains
     use dlfcn
     implicit none    
 
-    integer(c_int)                    :: instance_id
     integer(c_int)                    :: nx, ny, frame_number
     integer(c_int)                    :: error_flag
     integer(c_int), dimension (nx*ny) :: data_array
@@ -463,16 +452,14 @@ contains
 
  
     ! invoke the dynamically-linked subroutine:
-    call dll_plugin_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
+    call dll_plugin_get_data(frame_number, nx, ny, data_array, error_flag)
     
   end subroutine generic_get_data
 
   ! Close the shared-object 
   ! 
-  subroutine generic_close_file(instance_id, error_flag)
+  subroutine generic_close_file(error_flag)
     ! Requirements:
-    !  'INSTANCE_ID' (integer 0..511)  input  Unique identifier similar to a UNIT, or an FD in C (In the latter case it would then, however,
-    !                                         output value that is awarded by the Library)
     !      'ERROR_FLAG' (integer)     output  Return values:
     !                                           0 Success
     !                                          -1 Error closing Masterfile
@@ -483,7 +470,6 @@ contains
     use dlfcn
     implicit none    
 
-    integer(c_int) :: instance_id
     integer(c_int) :: error_flag
     integer(c_int) :: external_error_flag
 
@@ -497,7 +483,7 @@ contains
     write (*,*) "[F] - generic_close_file"
     write (*,*) "      + handle       = <", handle,">"
     
-    call dll_plugin_close_file(instance_id, external_error_flag)
+    call dll_plugin_close_file(external_error_flag)
     error_flag = external_error_flag
 
     ! now close the dl:
@@ -523,7 +509,6 @@ program image_consumer
   
   implicit none
 
-  integer(c_int)                                :: instance_id
   integer                                       :: number_of_arguments, cptArg
   logical                                       :: external_source_flag=.FALSE.
   character(len=:), allocatable                 :: template_name
@@ -541,13 +526,13 @@ program image_consumer
   detector      = 'libdectrish5toxds'
   template_name = '/home/vitb/jira_EDULA-15/lyso7_1_master.h5'
 
-  call generic_open_file(instance_id, detector, template_name, error_flag)
+  call generic_open_file(detector, template_name, error_flag)
 
   if (0/=error_flag) then
      stop
   else
 
-     call generic_get_header(instance_id, nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
+     call generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
      write (*,*) "[F] - generic_header"
      write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
      write (*,*) "      + nbyte            = <", nbyte,">"
@@ -571,7 +556,7 @@ program image_consumer
 !          ! data_array(3,2)  =   5+frame_number
 !          ! data_array(5,3) =  10+frame_number
 
-        call generic_get_data(instance_id, frame_number, nx, ny, data_array, error_flag)
+        call generic_get_data(frame_number, nx, ny, data_array, error_flag)
 
         write (*,*) "[F] - generic_data"
         write (*,*) "      + frame_number       = <", frame_number, ">"
@@ -583,7 +568,7 @@ program image_consumer
 !       end do
      endif
 
-     call generic_close_file(instance_id, error_flag)
+     call generic_close_file(error_flag)
   endif
 
   stop

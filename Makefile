@@ -22,13 +22,7 @@ else
 	FLDFLAGS_SHARED = -g -shared
 	FLDOPTS         = -ldl
 endif
-all: image_consumer 
-
-image_consumer:  image_consumer.o 
-	$(FC) $(FLDFLAGS) -o $@ image_consumer.o  $(FLDOPTS)
-
-image_consumer.o: image_consumer.f03 
-	$(FC) $(FFLAGS) $^ -o $@
+all: generic_data_plugin
 
 generic_data_plugin:  generic_data_plugin.o 
 	$(FC) $(FLDFLAGS) -o $@ generic_data_plugin.o  $(FLDOPTS)
@@ -36,18 +30,6 @@ generic_data_plugin:  generic_data_plugin.o
 generic_data_plugin.o: generic_data_plugin.f90
 	$(FC) $(FFLAGS) $^ -o $@
 
-# Fortran shared-object 
-# libDectrisImageRead.so: dectris_image_read.o
-#	$(FC) $(FLDFLAGS_SHARED) -o $@ $^ $(FLDOPTS)
-# dectris_image_read.o: dectris_image_read.f03
-#	$(FC) $(FFLAGS) $^ -o $@
-
-# C shared-object
-# libDectrisSource.so: dectris_source.o
-#	$(CC) $(LDFLAGS) -o $@ $^ $(LDOPTS)
-
-# dectris_source.o: dectris_source.c
-#	$(CC) $(CFLAGS) $^ -o $@
 
 # Cleaning everything
 clean:
