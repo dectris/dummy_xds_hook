@@ -1,6 +1,6 @@
 *.mod
 *.o
-image_consumer
+generic_data_plugin
 *~
 *.*~
 *.so
