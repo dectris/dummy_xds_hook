@@ -190,7 +190,7 @@ contains
     CHARACTER(len=:), ALLOCATABLE :: master_file
     
     !PRINT*,'generic_getfrm:',detector
-    ier=-3  ! wrong data format
+    ier=-3  ! wrong data fromat
     IF (.NOT.ALLOCATED(detector)) RETURN
     IF (detector(1:3)/='lib') RETURN
     len=LEN_TRIM(actnam)             ! test_123456.h5 is a possible actnam
@@ -254,16 +254,34 @@ contains
 
   ! 
   ! Open the shared-object 
-  subroutine generic_open_file(detector, template_name, error_flag)
+  subroutine generic_open_file(detector, template_name, info_array, error_flag)
     ! Requirements:
-    !      'DETECTOR'                 input  (I would without the  .so, because it is an implementation detail)
-    !      'TEMPLATE_NAME'            input  (the resource in image data masterfile)
-    !      'ERROR_FLAG'              output Return values
+    !  'DETECTOR'                     input  (I would without the  .so, because it is an implementation detail)
+    !  'TEMPLATE_NAME'                input  (the resource in image data masterfile)
+    !  'INFO' (integer array)         input  Array of (1024) integers:
+    !                                          INFO(1)    = Consumer ID (1:XDS)
+    !                                          INFO(2)    = Version Number of the Consumer software
+    !                                          INFO(3:8)  = Unused
+    !                                          INFO(9:40) = 1024bit signature of the consumer software
+    !                                          INFO(>41)  = Unused
+    !  'INFO' (integer array)         output Array of (1024) integers:
+    !                                          INFO(1)    = Vendor ID (1:Dectris)
+    !                                          INFO(2)    = Major Version number of the library
+    !                                          INFO(3)    = Minor Version number of the library
+    !                                          INFO(4)    = Parch Version number of the library
+    !                                          INFO(5)    = Linux timestamp of library creation
+    !                                          INFO(6:8)  = Unused
+    !                                          INFO(9:40) = 1024bit signature of the library
+    !                                          INFO(>41)  = Unused
+    !  'ERROR_FLAG'                   output Return values
     !                                         0 Success
     !                                        -1 Handle already exists
     !                                        -2 Cannot open Library
     !                                        -3 Function not found in library
-    !                                        -4 Master file cannot be opened (coming form C function)
+    !                                        -4 Master file cannot be opened (coming from C function)
+    !                                        -10 Consumer identity not supported (coming from C function)
+    !                                        -11 Consumer identity could not be verified (coming from C function)
+    !                                        -12 Consumer software version not supported (coming from C function)
 
     use iso_c_binding
     use iso_c_utilities
@@ -272,6 +290,7 @@ contains
 
     character(len=:), allocatable      :: detector, template_name
     integer(c_int)                     :: error_flag
+    integer(c_int), dimension(1024)    :: info_array
     type(c_funptr)                     :: fun_plugin_open_file_ptr   = c_null_funptr
     type(c_funptr)                     :: fun_plugin_close_file_ptr  = c_null_funptr
     type(c_funptr)                     :: fun_plugin_get_header_ptr  = c_null_funptr
@@ -291,8 +310,6 @@ contains
        error_flag = -1
        return
     endif
-
-
 
     dll_filename=detector//".so"
     error_flag = 0 
@@ -371,19 +388,23 @@ contains
     !  'NBYTE' (integer)               output  Number of bytes in the image... X*Y*DEPTH
     !  'QX' (4*REAL)                   output  Pixel size
     !  'QY' (4*REAL)                   output  Pixel size
-    !  'NUMBER_OF_FRAMES' (integer)   output  Number of frames for the full datase. So far unused
-    !  'INFO' (integer array)         output  Array of (1024) integers:
-    !                                          INFO(1)  = Vendor ID (1:Dectris)
-    !                                          INFO(2)  = Major Version number of the library
-    !                                          INFO(3)  = Minor Version number of the library
-    !                                          INFO(4)  = Parch Version number of the library
-    !                                          INFO(5)  = Linux timestamp of library creation
-    !                                          INFO(>5) = Not yet used 
-    !  'ERROR_FLAG' (integer)         output  Provides error state condition
-    !                                           0 Success
-    !                                          -1 Cannot open library
-    !                                          -2 Cannot read header (will come from C function)
-    !                                          -4 Cannot read dataset informations (will come from C function)
+    !  'NUMBER_OF_FRAMES' (integer)    output  Number of frames for the full datase. So far unused
+    !  'INFO' (integer array)           input  Array of (1024) integers:
+    !                                          INFO(>1)     = Unused
+    !  'INFO' (integer array)          output  Array of (1024) integers:
+    !                                           INFO(1)       = Vendor ID (1:Dectris)
+    !                                           INFO(2)       = Major Version number of the library
+    !                                           INFO(3)       = Minor Version number of the library
+    !                                           INFO(4)       = Patch Version number of the library
+    !                                           INFO(5)       = Linux timestamp of library creation
+    !                                           INFO(6:64)    = Reserved
+    !                                           INFO(65:1024) = Dataset parameters
+    !  'ERROR_FLAG'                    output  Return values
+    !                                            0      Success
+    !                                           -1      Cannot open library
+    !                                           -2      Cannot read header (will come from C function)
+    !                                           -4      Cannot read dataset informations (will come from C function)
+    !                                           -10     Error in the determination of the Dataset parameters (will come from C function)
     !
     use iso_c_binding
     use iso_c_utilities
@@ -417,18 +438,31 @@ contains
 
   ! 
   ! Dynamically map function and execute it 
-  subroutine generic_get_data(frame_number, nx, ny, data_array, error_flag)
+  subroutine generic_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
     ! Requirements:
     !  'FRAME_NUMBER' (integer)        input  Number of frames for the full datase. So far unused
     !  'NX' (integer)                  input  Number of pixels along X 
     !  'NY' (integer)                  input  Number of pixels along Y
     !  'DATA_ARRAY' (integer array)   output  1D array containing pixel data with lenght = NX*NY
+    !  'INFO' (integer array)         output Array of (1024) integers:
+    !                                          INFO(1)     = Vendor ID (1:Dectris)
+    !                                          INFO(2)     = Major Version number of the library
+    !                                          INFO(3)     = Minor Version number of the library
+    !                                          INFO(4)     = Parch Version number of the library
+    !                                          INFO(5)     = Linux timestamp of library creation
+    !                                          INFO(6:8)   = Unused
+    !                                          INFO(9:40)  = 1024bit verification key
+    !                                          INFO(41:44) = Image MD5 Checksum 
+    !                                          INFO()  = Unused
     !  'ERROR_FLAG' (integer)         output  Provides error state condition
     !                                           0 Success
     !                                          -1 Cannot open library 
     !                                          -2 Cannot open frame (will come from C function)
     !                                          -3 Datatype not supported (will come from C function)
     !                                          -4 Cannot read dataset informations (will come from C function)
+    !                                         -10 MD5 Checksum Error 
+    !                                         -11 Verification key error
+    !  
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
@@ -436,23 +470,23 @@ contains
 
     integer(c_int)                    :: nx, ny, frame_number
     integer(c_int)                    :: error_flag
+    integer(c_int), dimension(1024)   :: info_array
     integer(c_int), dimension (nx*ny) :: data_array
 
     ! Check if can use handle
-    if(.not.c_associated(handle)) then
-       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
-       error_flag = -1
-       return
-    end if
+    ! if(.not.c_associated(handle)) then
+    !    write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+    !    error_flag = -1
+    !    return
+    ! end if
 
-    write (*,*) "[F] - generic_get_data"
-    write (*,*) "      + handle       = <", handle,       ">"
-    write (*,*) "      + frame_number = <", frame_number, ">"
-    write (*,*) "      + nx, ny       = <", nx, ",", ny,  ">"
-
+    ! write (*,*) "[F] - generic_get_data"
+    ! write (*,*) "      + handle       = <", handle,       ">"
+    ! write (*,*) "      + frame_number = <", frame_number, ">"
+    ! write (*,*) "      + nx, ny       = <", nx, ",", ny,  ">"
  
     ! invoke the dynamically-linked subroutine:
-    call dll_plugin_get_data(frame_number, nx, ny, data_array, error_flag)
+    call dll_plugin_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
     
   end subroutine generic_get_data
 
@@ -526,7 +560,10 @@ program image_consumer
   detector      = 'libdectrish5toxds'
   template_name = '/home/vitb/jira_EDULA-15/lyso7_1_master.h5'
 
-  call generic_open_file(detector, template_name, error_flag)
+  info_array(1) = 1 ! XDS 
+  info_array(2) = 123456789 ! XDS dummy version
+
+  call generic_open_file(detector, template_name, info_array, error_flag)
 
   if (0/=error_flag) then
      stop
