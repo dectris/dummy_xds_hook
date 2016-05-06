@@ -570,7 +570,7 @@ program image_consumer
   
   write (*,*) "[F] - Loading shared-object"
   detector      = 'libdectrish5toxds'
-  template_name = '/home/vitb/jira_EDULA-15/lyso7_1_master.h5'
+  template_name = name
 
   info_array(1) = 1 ! XDS 
   info_array(2) = 123456789 ! XDS dummy version
