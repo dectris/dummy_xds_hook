@@ -545,7 +545,10 @@ program image_consumer
   
   implicit none
 
+
+
   integer                                       :: number_of_arguments, cptArg
+  character(len=200)                            ::name !Arg name
   logical                                       :: external_source_flag=.FALSE.
   character(len=:), allocatable                 :: template_name
   integer                                       :: i
@@ -557,6 +560,13 @@ program image_consumer
   integer(c_int), dimension(1024)               :: info_array
   integer(c_int), dimension (:,:), allocatable  :: data_array
 
+  number_of_arguments=command_argument_count()
+  if(number_of_arguments == 1) then
+     call get_command_argument(cptArg,name)
+  else
+     write (*,*) "[F] - Pass the filename of the masterfile"
+     stop 
+  endif
   
   write (*,*) "[F] - Loading shared-object"
   detector      = 'libdectrish5toxds'
