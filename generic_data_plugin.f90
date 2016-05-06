@@ -137,10 +137,11 @@ module generic_data_plugin
   ! get_header -> dll_get_header 
   abstract interface
 
-     subroutine plugin_open_file(filename, error_flag) bind(C)
+     subroutine plugin_open_file(filename, info_array, error_flag) bind(C)
        use iso_c_binding
-       integer(c_int)           :: error_flag
-       character(kind=c_char)   :: filename(*)
+       integer(c_int)                  :: error_flag
+       character(kind=c_char)          :: filename(*)
+       integer(c_int), dimension(1024) :: info_array
 
 
      end subroutine plugin_open_file
@@ -159,11 +160,12 @@ module generic_data_plugin
        integer(c_int), dimension(1024) :: info_array
      end subroutine plugin_get_header
 
-     subroutine plugin_get_data(frame_number, nx, ny, data_array, error_flag) bind(C)
+     subroutine plugin_get_data(frame_number, nx, ny, data_array, info_array, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)                   :: nx, ny, frame_number
        integer(c_int)                   :: error_flag
        integer(c_int), dimension(nx:ny) :: data_array
+       integer(c_int), dimension(1024)  :: info_array
      end subroutine plugin_get_data
   end interface
 
@@ -200,7 +202,7 @@ contains
     IF (NXNY==0) THEN
        master_file=actnam(:len-9)//'master.h5'
        PRINT*,'master_file=',TRIM(master_file)
-       CALL generic_open_file(detector, master_file, ier)
+       CALL generic_open_file(detector, master_file,info_array, ier)
        IF (ier/=0) THEN
           WRITE(*,*) 'could not open ',detector//'.so',' ier=',ier
           WRITE(*,*) 'check LD_LIBRARY_PATH !'
@@ -240,7 +242,7 @@ contains
        WRITE(*,*) 'not enough space in iframe array'
        ier=-3
     ELSE
-       CALL generic_get_data(numfrm, nx, ny, iframe, ier)
+       CALL generic_get_data(numfrm, nx, ny, iframe, info_array, ier)
        IF (ier<0) THEN
           WRITE(*,*)'error from generic_get_data, numfrm, ier=',numfrm,ier
           STOP
@@ -373,7 +375,7 @@ contains
        return
     endif
        
-    call dll_plugin_open_file(image_data_filename, external_error_flag)
+    call dll_plugin_open_file(image_data_filename, info_array, external_error_flag)
     error_flag = external_error_flag
 
     return     
@@ -593,7 +595,7 @@ program image_consumer
 !          ! data_array(3,2)  =   5+frame_number
 !          ! data_array(5,3) =  10+frame_number
 
-        call generic_get_data(frame_number, nx, ny, data_array, error_flag)
+        call generic_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
 
         write (*,*) "[F] - generic_data"
         write (*,*) "      + frame_number       = <", frame_number, ">"
