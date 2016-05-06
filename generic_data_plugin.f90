@@ -562,7 +562,7 @@ program image_consumer
 
   number_of_arguments=command_argument_count()
   if(number_of_arguments == 1) then
-     call get_command_argument(cptArg,name)
+     call get_command_argument(1,name)
   else
      write (*,*) "[F] - Pass the filename of the masterfile"
      stop 
@@ -570,7 +570,7 @@ program image_consumer
   
   write (*,*) "[F] - Loading shared-object"
   detector      = 'libdectrish5toxds'
-  template_name = name
+  template_name = adjustl(name)
 
   info_array(1) = 1 ! XDS 
   info_array(2) = 123456789 ! XDS dummy version
