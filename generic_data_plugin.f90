@@ -475,6 +475,7 @@ contains
     integer(c_int), dimension(1024)   :: info_array
     integer(c_int), dimension (nx*ny) :: data_array
 
+    error_flag = 0
     ! Check if can use handle
     ! if(.not.c_associated(handle)) then
     !    write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
