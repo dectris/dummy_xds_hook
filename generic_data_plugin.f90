@@ -314,11 +314,11 @@ contains
     endif
 
     dll_filename=detector//".so"
-    error_flag = 0 
+    ! error_flag = 0 
     write (*,*)  "      + dll_filename    = <", trim(dll_filename)//C_NULL_CHAR, ">"
  
     image_data_filename=trim(template_name)//C_NULL_CHAR
-    error_flag = 0 
+    ! error_flag = 0 
     write (*,*)  "      + image_data_filename   = <", trim(image_data_filename)//C_NULL_CHAR, ">"
 
     !
