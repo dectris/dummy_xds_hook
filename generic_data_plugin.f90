@@ -123,10 +123,8 @@ module generic_data_plugin
   character(kind=c_char,len=1024) :: image_data_filename
   integer(c_int)                  :: status
   type(c_ptr)                     :: handle=c_null_ptr
-! for generic_getfrm:
-  INTEGER :: nx,ny         
-! filled by subroutine parser:
-  CHARACTER(len=:), allocatable :: detector
+  INTEGER :: nx,ny     ! global variables that do not change    
+  CHARACTER(len=:), allocatable :: library ! global variable that does not change 
 
   !public                          :: generic_open !, generic_header, generic_data, generic_clone
 
@@ -137,20 +135,20 @@ module generic_data_plugin
   ! get_header -> dll_get_header 
   abstract interface
 
-     subroutine plugin_open_file(filename, info_array, error_flag) bind(C)
+     subroutine plugin_open(filename, info_array, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)                  :: error_flag
        character(kind=c_char)          :: filename(*)
        integer(c_int), dimension(1024) :: info_array
 
 
-     end subroutine plugin_open_file
+     end subroutine plugin_open
 
-     subroutine plugin_close_file(error_flag) bind(C)
+     subroutine plugin_close(error_flag) bind(C)
        use iso_c_binding
        integer (c_int)          :: error_flag
 
-     end subroutine plugin_close_file
+     end subroutine plugin_close
 
      subroutine plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
        use iso_c_binding
@@ -170,95 +168,22 @@ module generic_data_plugin
   end interface
 
   ! dynamically-linked procedures
-  procedure(plugin_open_file),  pointer :: dll_plugin_open_file
+  procedure(plugin_open),  pointer :: dll_plugin_open
   procedure(plugin_get_header), pointer :: dll_plugin_get_header 
   procedure(plugin_get_data),   pointer :: dll_plugin_get_data   
-  procedure(plugin_close_file), pointer :: dll_plugin_close_file
+  procedure(plugin_close), pointer :: dll_plugin_close
    
 
 
 
 contains
 
-  subroutine generic_getfrm(TEST,XFRM,ACTNAM,NXNY,IFRAME,NX0,NY0,QX0,QY0,IER)
-    INTENT(IN)       :: TEST,XFRM,ACTNAM,NXNY   ! test,xfrm are ignored
-    INTENT(OUT)      :: IFRAME,NX0,NY0,QX0,QY0,IER
-    CHARACTER(len=*) :: ACTNAM
-    INTEGER             TEST,XFRM,IER
-    INTEGER(4)          NX0,NY0,NXNY,IFRAME(NXNY)
-    REAL(4)             QX0,QY0
-    INTEGER          :: nbyte,info_array(1024),number_of_frames,len,numfrm
-    REAL             :: qx,qy
-    CHARACTER(len=:), ALLOCATABLE :: master_file
-    
-    !PRINT*,'generic_getfrm:',detector
-    ier=-3  ! wrong data fromat
-    IF (.NOT.ALLOCATED(detector)) RETURN
-    IF (detector(1:3)/='lib') RETURN
-    len=LEN_TRIM(actnam)             ! test_123456.h5 is a possible actnam
-    !  print*,actnam(len-8:len-3)
-    READ(actnam(len-8:len-3),*) numfrm  ! this assumes that actnam ends with .h5
-    !PRINT*,'actnam=',TRIM(actnam),numfrm,len
-    IF (NXNY==0) THEN
-       master_file=actnam(:len-9)//'master.h5'
-       PRINT*,'master_file=',TRIM(master_file)
-       CALL generic_open_file(detector, master_file,info_array, ier)
-       IF (ier/=0) THEN
-          WRITE(*,*) 'could not open ',detector//'.so',' ier=',ier
-          WRITE(*,*) 'check LD_LIBRARY_PATH !'
-          ier=-3
-          RETURN
-       END IF
-       CALL generic_get_header(nx,ny,nbyte,qx,qy,number_of_frames,info_array,ier)
-       PRINT*,'nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)=', &
-            nx,ny,nbyte,qx,qy,number_of_frames,info_array(1:5)
-       IF (ier/=0) THEN
-          WRITE(*,*) 'could not get header from ',TRIM(master_file),' ier=',ier
-          ier=-3
-          RETURN 
-       END IF
-       WRITE(*,'(a,4i4,i12)')'INFO(1:5)=vendor/major version/minor version/patch/timestamp=', &
-            info_array(1:5)
-       IF (info_array(1)/=1) THEN
-          WRITE(*,*) 'expected info_array(1)=1 but got',info_array(1) ! 1=Dectris
-          ier=-3
-          RETURN
-       END IF
-       IF (info_array(2)/=0) THEN  
-          WRITE(*,*) 'expected info_array(2)=0 but got',info_array(2) ! Version 0
-          ier=-3
-          RETURN
-       END IF
-       nx0=nx
-       ny0=ny
-       qx0=qx
-       qy0=qy
-       IF (info_array(1)==1) THEN ! Dectris reports pixel size in m, not mm
-          qx0=qx0*1000
-          qy0=qy0*1000
-       END IF
-       ! at this point, ier has a meaningful value
-    ELSE IF (nxny<nx*ny) THEN
-       WRITE(*,*) 'not enough space in iframe array'
-       ier=-3
-    ELSE
-       CALL generic_get_data(numfrm, nx, ny, iframe, info_array, ier)
-       IF (ier<0) THEN
-          WRITE(*,*)'error from generic_get_data, numfrm, ier=',numfrm,ier
-          STOP
-          ier=-1
-       END IF
-    END IF
-    ! at this point, ier should have a meaningul value
-    PRINT*,'return from generic_getfrm, ier=',ier
-  END subroutine generic_getfrm
-
 
   ! 
   ! Open the shared-object 
-  subroutine generic_open_file(detector, template_name, info_array, error_flag)
+  subroutine generic_open(library, template_name, info_array, error_flag)
     ! Requirements:
-    !  'DETECTOR'                     input  (I would without the  .so, because it is an implementation detail)
+    !  'LIBRARY'                      input  (including path, otherwise using LD_LIBRARY_PATH)
     !  'TEMPLATE_NAME'                input  (the resource in image data masterfile)
     !  'INFO' (integer array)         input  Array of (1024) integers:
     !                                          INFO(1)    = Consumer ID (1:XDS)
@@ -290,36 +215,35 @@ contains
     use dlfcn
     implicit none    
 
-    character(len=:), allocatable      :: detector, template_name
+    character(len=:), allocatable      :: library, template_name
     integer(c_int)                     :: error_flag
     integer(c_int), dimension(1024)    :: info_array
-    type(c_funptr)                     :: fun_plugin_open_file_ptr   = c_null_funptr
-    type(c_funptr)                     :: fun_plugin_close_file_ptr  = c_null_funptr
+    type(c_funptr)                     :: fun_plugin_open_ptr   = c_null_funptr
+    type(c_funptr)                     :: fun_plugin_close_ptr  = c_null_funptr
     type(c_funptr)                     :: fun_plugin_get_header_ptr  = c_null_funptr
     type(c_funptr)                     :: fun_plugin_get_data_ptr    = c_null_funptr
     integer(c_int)                     :: external_error_flag
-
+    logical                            :: loading_error_flag     = .false.
 
     error_flag=0
 
-    write (*,*) "[F] - generic_open_file"
-    write (*,*) "      + detector          = <", detector,      ">"
-    write (*,*) "      + template_name     = <", template_name, ">"
-    write (*,*)  "      + handle (original) = <", handle,        ">"
+    write(6,*) "[generic_data_plugin] - INFO - generic_open"
+    write(6,*) "      + library          = <", library,      ">"
+    write(6,*) "      + template_name    = <", template_name, ">"
 
     if ( c_associated(handle) ) then
-       write(*,*) "[X] - error. 'handle' not null"
+       write(6,*) "[generic_data_plugin] - ERROR - 'handle' not null"
        error_flag = -1
        return
     endif
 
-    dll_filename=detector//".so"
-    ! error_flag = 0 
-    write (*,*)  "      + dll_filename    = <", trim(dll_filename)//C_NULL_CHAR, ">"
+    dll_filename=library
+    error_flag = 0 
+    write(6,*)  "      + dll_filename     = <", trim(dll_filename)//C_NULL_CHAR, ">"
  
     image_data_filename=trim(template_name)//C_NULL_CHAR
-    ! error_flag = 0 
-    write (*,*)  "      + image_data_filename   = <", trim(image_data_filename)//C_NULL_CHAR, ">"
+    error_flag = 0 
+    write(6,*)  "      + image_data_filename   = <", trim(image_data_filename)//C_NULL_CHAR, ">"
 
     !
     ! Open the DL:
@@ -329,57 +253,58 @@ contains
     !
     ! Check if can use handle
     if(.not.c_associated(handle)) then
-       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       write(6,*) "[generic_data_plugin] - ERROR - Cannot open Handle: ", c_f_string(dlerror())
        error_flag = -2
        return
     end if
     
-    write (*,*)  "      + handle (new)      = <", handle,        ">"
 
     !
     ! Find the subroutines in the DL:
     fun_plugin_get_data_ptr   = DLSym(handle,"plugin_get_data")
     if(.not.c_associated(fun_plugin_get_data_ptr))  then
-       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -3
+       write(6,*) "[generic_data_plugin] - ERROR in DLSym(handle,'plugin_get_data'): ", c_f_string(dlerror())
+       loading_error_flag = .true.
     else
        call c_f_procpointer(cptr=fun_plugin_get_data_ptr,   fptr=dll_plugin_get_data)
     endif
     !
     fun_plugin_get_header_ptr = DLSym(handle,"plugin_get_header")
     if(.not.c_associated(fun_plugin_get_header_ptr))  then
-       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -3
+       write(6,*) "[generic_data_plugin] - ERROR in DLSym(handle,'plugin_get_header'): ",c_f_string(dlerror())
+       loading_error_flag = .true.
     else
        call c_f_procpointer(cptr=fun_plugin_get_header_ptr, fptr=dll_plugin_get_header)
     endif
     !
-    fun_plugin_open_file_ptr   = DLSym(handle,"plugin_open_file")
-    if(.not.c_associated(fun_plugin_open_file_ptr))  then
-       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -3
+    fun_plugin_open_ptr   = DLSym(handle,"plugin_open")
+    if(.not.c_associated(fun_plugin_open_ptr))  then
+       write(6,*) "[generic_data_plugin] - ERROR in DLSym(handle,'plugin_open'): ", c_f_string(dlerror())
+       loading_error_flag = .true.
     else
-       call c_f_procpointer(cptr=fun_plugin_open_file_ptr,   fptr=dll_plugin_open_file)
+       call c_f_procpointer(cptr=fun_plugin_open_ptr,   fptr=dll_plugin_open)
     endif
-    !
-    fun_plugin_close_file_ptr = DLSym(handle,"plugin_close_file")
-    if(.not.c_associated(fun_plugin_close_file_ptr)) then
-       write(*,*) "[X] - error in dlsym: ", c_f_string(dlerror())
-       error_flag = -3
+    
+    fun_plugin_close_ptr = DLSym(handle,"plugin_close")
+    if(.not.c_associated(fun_plugin_close_ptr)) then
+       write(6,*) "[generic_data_plugin] - ERROR in DLSym(handle,'plugin_close'): ", c_f_string(dlerror())
+       loading_error_flag = .true.
     else
-       call c_f_procpointer(cptr=fun_plugin_close_file_ptr, fptr=dll_plugin_close_file)
+       call c_f_procpointer(cptr=fun_plugin_close_ptr, fptr=dll_plugin_close)
     endif
 
 
-    if (0/=error_flag) then
-       return
+    if (loading_error_flag==.true.) then
+       write(6,*) "[generic_data_plugin] - ERROR - Cannot map function(s) from the dll"
+       error_flag = -3
+    else   
+       call dll_plugin_open(image_data_filename, info_array, external_error_flag)
+       error_flag = external_error_flag
     endif
-       
-    call dll_plugin_open_file(image_data_filename, info_array, external_error_flag)
-    error_flag = external_error_flag
 
-    return     
-  end subroutine generic_open_file
+    return
+
+  end subroutine generic_open
 
   !
   ! Get the header
@@ -420,20 +345,18 @@ contains
     integer(c_int), dimension(1024)  :: info_array
     error_flag=0
 
-    write (*,*) "[F] - generic_get_header"
-    write (*,*)  "      + handle            = <", handle,        ">"
-
+    write(6,*) "[generic_data_plugin] - INFO - generic_get_header"
+    
     ! Check if can use handle
     if(.not.c_associated(handle)) then
-       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       write(6,*) "[generic_data_plugin] - ERROR - Cannot open Handle"
+       write(6,*) "                        ", c_f_string(dlerror())
        error_flag = -1
        return
     end if
  
     ! finally, invoke the dynamically-linked subroutine:
     call dll_plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
-
-    error_flag = external_error_flag
     return 
   end subroutine generic_get_header
 
@@ -475,27 +398,15 @@ contains
     integer(c_int), dimension(1024)   :: info_array
     integer(c_int), dimension (nx*ny) :: data_array
 
-    error_flag = 0
-    ! Check if can use handle
-    ! if(.not.c_associated(handle)) then
-    !    write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
-    !    error_flag = -1
-    !    return
-    ! end if
 
-    ! write (*,*) "[F] - generic_get_data"
-    ! write (*,*) "      + handle       = <", handle,       ">"
-    ! write (*,*) "      + frame_number = <", frame_number, ">"
-    ! write (*,*) "      + nx, ny       = <", nx, ",", ny,  ">"
- 
-    ! invoke the dynamically-linked subroutine:
+    error_flag=0
     call dll_plugin_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
-    
+   
   end subroutine generic_get_data
 
   ! Close the shared-object 
   ! 
-  subroutine generic_close_file(error_flag)
+  subroutine generic_close(error_flag)
     ! Requirements:
     !      'ERROR_FLAG' (integer)     output  Return values:
     !                                           0 Success
@@ -512,115 +423,29 @@ contains
 
     ! Check if can use handle
     if(.not.c_associated(handle)) then
-       write(*,*) "[X] - error in dlopen: ", c_f_string(dlerror())
+       write(6,*) "[generic_data_plugin] - ERROR - Cannot open Handle"
+       write(6,*) "                        ", c_f_string(dlerror())
        error_flag = -1
        return
     end if
 
-    write (*,*) "[F] - generic_close_file"
-    write (*,*) "      + handle       = <", handle,">"
+    write(6,*) "[generic_data_plugin] - INFO - 'call generic_close()'"
     
-    call dll_plugin_close_file(external_error_flag)
+    call dll_plugin_close(external_error_flag)
     error_flag = external_error_flag
 
     ! now close the dl:
     status=dlclose(handle)
     if(status/=0) then
-       write(*,*) "[X] - error in dlclose: ", c_f_string(dlerror())
+       write(6,*) "[generic_data_plugin] - ERROR - Cannot open Handle"
+       write(6,*) "                        ", c_f_string(dlerror())
        error_flag = -2
     else
        error_flag = 0
     end if
 
     return 
-  end subroutine generic_close_file
+  end subroutine generic_close
 
 end module generic_data_plugin
 
-!
-! Dummy shared object consumer
-!
-program image_consumer
-  use iso_c_binding
-  use generic_data_plugin
-  
-  implicit none
-
-
-
-  integer                                       :: number_of_arguments, cptArg
-  character(len=200)                            ::name !Arg name
-  logical                                       :: external_source_flag=.FALSE.
-  character(len=:), allocatable                 :: template_name
-  integer                                       :: i
-  ! character(len=20)                             :: name
-  ! character(len=:), allocatable                 :: detector,
-  integer(c_int)                                :: error_flag, number_of_frames, nbyte=0, frame_number
-  ! integer(c_int)                                :: nx=0, ny=0, frame_number
-  real(c_float)                                 :: qx=0, qy=0
-  integer(c_int), dimension(1024)               :: info_array
-  integer(c_int), dimension (:,:), allocatable  :: data_array
-
-  number_of_arguments=command_argument_count()
-  if(number_of_arguments == 1) then
-     call get_command_argument(1,name)
-  else
-     write (*,*) "[F] - Pass the filename of the masterfile"
-     stop 
-  endif
-  
-  write (*,*) "[F] - Loading shared-object"
-  detector      = 'libdectrish5toxds'
-  template_name = adjustl(name)
-
-  info_array(1) = 1 ! XDS 
-  info_array(2) = 123456789 ! XDS dummy version
-
-  call generic_open_file(detector, template_name, info_array, error_flag)
-
-  if (0/=error_flag) then
-     stop
-  else
-
-     call generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
-     write (*,*) "[F] - generic_header"
-     write (*,*) "      + nx,ny            = <", nx, ", ", ny,">"
-     write (*,*) "      + nbyte            = <", nbyte,">"
-     write (*,*) "      + qx,qy            = <", qx, ", ", qy,">"
-     write (*,*) "      + number_of_frames = <",number_of_frames ,">"
-     write (*,*) "      + info_array(1)    = <", info_array(1) ,">"
-     write (*,*) "      + info_array(2)    = <", info_array(2) ,">"
-     write (*,*) "      + error_flag       = <", error_flag,">"
-     
-     if (0/=error_flag) then
-        stop
-     else
-
-        ! One must place the total number of frames somewhere in the info array
-        allocate (data_array(nx,ny))
-        frame_number=1
-!        do frame_number = 1,number_of_frames
-!          write (*,*) "[F] - [FRAME n.",frame_number,"]"
-
-!          ! data_array(1,1)  =   1+frame_number
-!          ! data_array(3,2)  =   5+frame_number
-!          ! data_array(5,3) =  10+frame_number
-
-        call generic_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
-
-        write (*,*) "[F] - generic_data"
-        write (*,*) "      + frame_number       = <", frame_number, ">"
-        write (*,*) "      + nx,ny              = <", nx, ", ", ny, ">"
-        do i=1, 1065, 1
-           write (*,*) data_array(1,i), data_array(2,i), data_array(3,i), data_array(4,i)
-        end do
-        write (*,*) "      + error_flag         = <", error_flag,   ">"
-!       end do
-     endif
-
-     call generic_close_file(error_flag)
-  endif
-
-  stop
-  
-end program image_consumer

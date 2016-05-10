@@ -22,10 +22,13 @@ else
 	FLDFLAGS_SHARED = -g -shared
 	FLDOPTS         = -ldl
 endif
-all: generic_data_plugin
+all: image_consumer
 
-generic_data_plugin:  generic_data_plugin.o 
-	$(FC) $(FLDFLAGS) -o $@ generic_data_plugin.o  $(FLDOPTS)
+image_consumer:  generic_data_plugin.o image_consumer.o
+	$(FC) $(FLDFLAGS) -o $@ $^  $(FLDOPTS)
+
+image_consumer.o: image_consumer.f90
+	$(FC) $(FFLAGS) $^ -o $@
 
 generic_data_plugin.o: generic_data_plugin.f90
 	$(FC) $(FFLAGS) $^ -o $@
