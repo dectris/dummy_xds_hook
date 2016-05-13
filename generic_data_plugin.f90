@@ -395,7 +395,7 @@ contains
 
     integer(c_int)                    :: nx, ny, frame_number
     integer(c_int)                    :: error_flag
-    integer(c_int), dimension(1024)   :: info_array
+    integer(c_int), dimension(*)    :: info_array
     integer(c_int), dimension (*)     :: data_array
 
 
