@@ -52,6 +52,9 @@ program image_consumer
   real(c_float)                                 :: qx=0, qy=0
   integer(c_int), dimension(1024)               :: info_array
   integer(c_int), dimension (:,:), allocatable  :: data_array
+  INTEGER                         :: nx,ny      ! global variables that do not change    
+  CHARACTER(len=:), allocatable   :: library    ! global variable that does not change 
+
   OPEN ( 6, STATUS='UNKNOWN', RECL=256 )
 
   number_of_arguments=command_argument_count()

@@ -123,8 +123,6 @@ module generic_data_plugin
   character(kind=c_char,len=1024) :: image_data_filename
   integer(c_int)                  :: status
   type(c_ptr)                     :: handle=c_null_ptr
-  INTEGER :: nx,ny     ! global variables that do not change    
-  CHARACTER(len=:), allocatable :: library ! global variable that does not change 
 
   !public                          :: generic_open !, generic_header, generic_data, generic_clone
 
