@@ -124,7 +124,7 @@ module generic_data_plugin
   integer(c_int)                  :: status
   type(c_ptr)                     :: handle=c_null_ptr
 
-  !public                          :: generic_open !, generic_header, generic_data, generic_clone
+  ! public                          :: generic_open !, generic_header, generic_data, generic_clone
 
   !
   ! Abstract interfaces for C mapped functions
@@ -132,44 +132,41 @@ module generic_data_plugin
   !
   ! get_header -> dll_get_header 
   abstract interface
-
      subroutine plugin_open(filename, info_array, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)                  :: error_flag
        character(kind=c_char)          :: filename(*)
        integer(c_int), dimension(1024) :: info_array
-
-
      end subroutine plugin_open
+
 
      subroutine plugin_close(error_flag) bind(C)
        use iso_c_binding
        integer (c_int)          :: error_flag
-
      end subroutine plugin_close
 
-     subroutine plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) bind(C)
+
+     subroutine plugin_get_header(metadata_array, error_flag) bind(C)
        use iso_c_binding
-       integer(c_int)                  :: nx, ny, nbyte, number_of_frames
-       real(c_float)                   :: qx, qy
        integer(c_int)                  :: error_flag
-       integer(c_int), dimension(1024) :: info_array
+       integer(c_int), dimension(*)    :: metadata_array
      end subroutine plugin_get_header
 
-     subroutine plugin_get_data(frame_number, nx, ny, data_array, info_array, error_flag) bind(C)
+
+     subroutine plugin_get_data(frame_number, nx, ny, data_array, data_validation_array, error_flag) bind(C)
        use iso_c_binding
        integer(c_int)                   :: nx, ny, frame_number
        integer(c_int)                   :: error_flag
        integer(c_int), dimension(nx:ny) :: data_array
-       integer(c_int), dimension(1024)  :: info_array
+       integer(c_int), dimension(1024)  :: data_validation_array
      end subroutine plugin_get_data
   end interface
 
   ! dynamically-linked procedures
-  procedure(plugin_open),  pointer :: dll_plugin_open
+  procedure(plugin_open),       pointer :: dll_plugin_open
   procedure(plugin_get_header), pointer :: dll_plugin_get_header 
   procedure(plugin_get_data),   pointer :: dll_plugin_get_data   
-  procedure(plugin_close), pointer :: dll_plugin_close
+  procedure(plugin_close),      pointer :: dll_plugin_close
    
 
 
@@ -196,7 +193,7 @@ contains
     !                                          INFO(4)    = Parch Version number of the library
     !                                          INFO(5)    = Linux timestamp of library creation
     !                                          INFO(6:8)  = Unused
-    !                                          INFO(9:40) = 1024bit signature of the library
+    !                                          INFO(9:40) = 1024bit signature of the library (not yet used)
     !                                          INFO(>41)  = Unused
     !  'ERROR_FLAG'                   output Return values
     !                                         0 Success
@@ -306,41 +303,30 @@ contains
 
   !
   ! Get the header
-  subroutine generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag)
+  subroutine generic_get_header(metadata_array, error_flag)
     ! Requirements:
-    !  'NX' (integer)                  output  Number of pixels along X 
-    !  'NY' (integer)                  output  Number of pixels along Y
-    !  'NBYTE' (integer)               output  Number of bytes in the image... X*Y*DEPTH
-    !  'QX' (4*REAL)                   output  Pixel size
-    !  'QY' (4*REAL)                   output  Pixel size
-    !  'NUMBER_OF_FRAMES' (integer)    output  Number of frames for the full datase. So far unused
-    !  'INFO' (integer array)           input  Array of (1024) integers:
-    !                                          INFO(>1)     = Unused
-    !  'INFO' (integer array)          output  Array of (1024) integers:
-    !                                           INFO(1)       = Vendor ID (1:Dectris)
-    !                                           INFO(2)       = Major Version number of the library
-    !                                           INFO(3)       = Minor Version number of the library
-    !                                           INFO(4)       = Patch Version number of the library
-    !                                           INFO(5)       = Linux timestamp of library creation
-    !                                           INFO(6:64)    = Reserved
-    !                                           INFO(65:1024) = Dataset parameters
-    !  'ERROR_FLAG'                    output  Return values
-    !                                            0      Success
-    !                                           -1      Cannot open library
-    !                                           -2      Cannot read header (will come from C function)
-    !                                           -4      Cannot read dataset informations (will come from C function)
-    !                                           -10     Error in the determination of the Dataset parameters (will come from C function)
+    !  'METADATA_ARRAY' (integer array) output  Array of (1024) integers:
+    !                                          METADATA_ARRAY(1) = 'NX'    Number of pixels along X 
+    !                                          METADATA_ARRAY(2) = 'NY'    Number of pixels along Y
+    !                                          METADATA_ARRAY(3) = 'NBYTE' Number of bytes in the image... X*Y*DEPTH
+    !                                          METADATA_ARRAY(4) = 'QX'    Pixel size in [nm] (10^-9 m)
+    !                                          METADATA_ARRAY(5) = 'QY'    Pixel size in [nm] (10^-9 m)
+    !                                          METADATA_ARRAY(6) = 'NUMBER_OF_FRAMES' (integer) Number of frames for the full dataset. So far unused"
+    !  'ERROR_FLAG'                     output  Return values
+    !                                             0      Success
+    !                                            -1      Cannot open library
+    !                                            -2      Cannot read header (will come from C function)
+    !                                            -4      Cannot read dataset informations (will come from C function)
+    !                                            -10     Error in the determination of the Dataset parameters (will come from C function)
     !
     use iso_c_binding
     use iso_c_utilities
     use dlfcn
     implicit none    
     
-    integer(c_int)                   :: nx, ny, nbyte, number_of_frames
-    real(c_float)                    :: qx, qy
     integer(c_int)                   :: error_flag
     integer(c_int)                   :: external_error_flag
-    integer(c_int), dimension(1024)  :: info_array
+    integer(c_int), dimension(*)     :: metadata_array
     error_flag=0
 
     write(6,*) "[generic_data_plugin] - INFO - generic_get_header"
@@ -354,29 +340,23 @@ contains
     end if
  
     ! finally, invoke the dynamically-linked subroutine:
-    call dll_plugin_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, external_error_flag)
+    call dll_plugin_get_header(metadata_array, external_error_flag)
     return 
   end subroutine generic_get_header
 
 
   ! 
   ! Dynamically map function and execute it 
-  subroutine generic_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
+  subroutine generic_get_data(frame_number, nx, ny, data_array, data_validation_array, error_flag)
     ! Requirements:
     !  'FRAME_NUMBER' (integer)        input  Number of frames for the full datase. So far unused
     !  'NX' (integer)                  input  Number of pixels along X 
     !  'NY' (integer)                  input  Number of pixels along Y
     !  'DATA_ARRAY' (integer array)   output  1D array containing pixel data with lenght = NX*NY
-    !  'INFO' (integer array)         output Array of (1024) integers:
-    !                                          INFO(1)     = Vendor ID (1:Dectris)
-    !                                          INFO(2)     = Major Version number of the library
-    !                                          INFO(3)     = Minor Version number of the library
-    !                                          INFO(4)     = Parch Version number of the library
-    !                                          INFO(5)     = Linux timestamp of library creation
-    !                                          INFO(6:8)   = Unused
-    !                                          INFO(9:40)  = 1024bit verification key
-    !                                          INFO(41:44) = Image MD5 Checksum 
-    !                                          INFO()  = Unused
+    !  'DATA_VALIDATION_ARRAY'        output Array of (1024) integers:
+    !               (integer array)            DATA_VALIDATION_ARRAY(0:39)  = 1024bit verification key
+    !                                          DATA_VALIDATION_ARRAY(32:35) = Image MD5 Checksum 
+    !                                          DATA_VALIDATION_ARRAY()      = Unused
     !  'ERROR_FLAG' (integer)         output  Provides error state condition
     !                                           0 Success
     !                                          -1 Cannot open library 
@@ -393,12 +373,12 @@ contains
 
     integer(c_int)                    :: nx, ny, frame_number
     integer(c_int)                    :: error_flag
-    integer(c_int), dimension(*)    :: info_array
-    integer(c_int), dimension (*)     :: data_array
+    integer(c_int), dimension(*)      :: data_validation_array
+    integer(c_int), dimension(*)      :: data_array
 
 
     error_flag=0
-    call dll_plugin_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
+    call dll_plugin_get_data(frame_number, nx, ny, data_array, data_validation_array, error_flag)
    
   end subroutine generic_get_data
 

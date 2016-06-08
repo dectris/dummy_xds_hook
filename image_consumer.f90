@@ -50,7 +50,9 @@ program image_consumer
   integer                                       :: i
   integer(c_int)                                :: error_flag, number_of_frames, nbyte=0, frame_number
   real(c_float)                                 :: qx=0, qy=0
+  integer(c_int), dimension(1024)               :: metadata_array
   integer(c_int), dimension(1024)               :: info_array
+  integer(c_int), dimension(1024)               :: data_validation_array
   integer(c_int), dimension (:,:), allocatable  :: data_array
   INTEGER                         :: nx,ny      ! global variables that do not change    
   CHARACTER(len=:), allocatable   :: library    ! global variable that does not change 
@@ -83,25 +85,32 @@ program image_consumer
   else
      
      write (6,*) "[image_consumer] - INFO - 'call generic_get_header()'"
-     call generic_get_header(nx, ny, nbyte, qx, qy, number_of_frames, info_array, error_flag) ! INFO_ARRAY, error_flag)
-     
+     call generic_get_header( metadata_array, error_flag) ! INFO_ARRAY, error_flag)
+
+     nx               = metadata_array(1)
+     ny               = metadata_array(2)
+     nbyte            = metadata_array(3)
+     qx               = 1E-9 * metadata_array(4)
+     qy               = 1E-9 * metadata_array(5)
+     number_of_frames = metadata_array(6)
+
      if (0/=error_flag) then
         write (6,*) "      + error_flag       = <", error_flag,">"
         call exit(error_flag)
      else     
-        write (6,*) "      + nx,ny            = <", nx, ", ", ny,">"
-        write (6,*) "      + nbyte            = <", nbyte,">"
-        write (6,*) "      + qx,qy            = <", qx, ", ", qy,">"
-        write (6,*) "      + number_of_frames = <",number_of_frames ,">"
-        write (6,*) "      + info_array(1)    = <", info_array(1) ,">"
-        write (6,*) "      + info_array(2)    = <", info_array(2) ,">"
+        write (6,*) "      + nx,ny            = <", nx, ", ", ny,     ">"
+        write (6,*) "      + nbyte            = <", nbyte,            ">"
+        write (6,*) "      + qx,qy            = <", qx, ", ", qy,     ">"
+        write (6,*) "      + number_of_frames = <", number_of_frames ,">"
+        write (6,*) "      + info_array(1)    = <", info_array(1)    ,">"
+        write (6,*) "      + info_array(2)    = <", info_array(2)    ,">"
      
         ! One must place the total number of frames somewhere in the info array
         allocate (data_array(nx,ny))
         frame_number=1
         
         write (6,*) "[image_consumer] - INFO - 'call generic_get_data()'"
-        call generic_get_data(frame_number, nx, ny, data_array, info_array, error_flag)
+        call generic_get_data(frame_number, nx, ny, data_array, data_validation_array, error_flag)
         if (0/=error_flag) then
            write (6,*) "      + error_flag       = <", error_flag,">"
            call exit(error_flag)
