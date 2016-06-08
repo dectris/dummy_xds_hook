@@ -1,3 +1,5 @@
+data/*
+*.h5
 *.mod
 *.o
 generic_data_plugin
